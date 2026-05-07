@@ -3,9 +3,13 @@ package com.petshop.controller;
 import com.petshop.model.Moment;
 import com.petshop.repository.MomentRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,12 +38,41 @@ public class MomentController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/{id}")
+    public Moment detail(@PathVariable Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "日常不存在"));
+    }
+
     @PostMapping
     public Moment create(@RequestBody Moment moment) {
         validate(moment);
         moment.setCreatedAt(LocalDateTime.now());
         moment.setLikes(moment.getLikes() == null ? 0 : moment.getLikes());
         return repository.save(moment);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id, @RequestParam String author) {
+        Moment moment = detail(id);
+        if (!safe(moment.getAuthor()).equals(author)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能删除自己的日常");
+        }
+        repository.delete(moment);
+    }
+
+    @PutMapping("/{id}")
+    public Moment update(@PathVariable Long id, @RequestParam String author, @RequestBody Moment update) {
+        Moment existing = detail(id);
+        if (!safe(existing.getAuthor()).equals(author)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能编辑自己的日常");
+        }
+        update.setId(existing.getId());
+        update.setAuthor(existing.getAuthor());
+        update.setCreatedAt(existing.getCreatedAt());
+        update.setLikes(existing.getLikes() == null ? 0 : existing.getLikes());
+        validate(update);
+        return repository.save(update);
     }
 
     private void validate(Moment moment) {

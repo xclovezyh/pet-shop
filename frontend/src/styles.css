@@ -168,6 +168,16 @@ h1 {
   width: 100%;
 }
 
+.quickFilters {
+  margin-top: 12px;
+  max-width: 220px;
+}
+
+.quickFilters select {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
 .heroPanel {
   align-self: end;
   background: rgba(255, 255, 255, 0.95);
@@ -293,6 +303,17 @@ h1 {
   overflow: hidden;
 }
 
+.clickable {
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.clickable:hover {
+  border-color: #8bb89e;
+  box-shadow: 0 14px 32px rgba(32, 39, 36, 0.11);
+  transform: translateY(-1px);
+}
+
 .cover,
 .placeholder {
   aspect-ratio: 4 / 3;
@@ -329,6 +350,7 @@ h1 {
 .sub,
 .health,
 .likes,
+.momentMeta,
 .postContact {
   align-items: center;
   display: flex;
@@ -341,9 +363,15 @@ h1 {
 
 .sub,
 .health,
+.momentMeta,
 .postContact {
   color: #66756d;
   font-size: 14px;
+}
+
+.momentMeta {
+  flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 .cardFooter {
@@ -572,6 +600,118 @@ textarea {
   margin: 0;
 }
 
+.mineRow {
+  align-items: center;
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  margin-bottom: 10px;
+  padding: 8px;
+}
+
+.mineRow button {
+  background: transparent;
+  border: 0;
+  color: #22352d;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 8px;
+  text-align: left;
+}
+
+.mineRow .editIcon,
+.mineRow .dangerIcon {
+  align-items: center;
+  border-radius: 6px;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+  text-align: center;
+  width: 34px;
+}
+
+.mineRow .editIcon {
+  background: #eef4f1;
+  color: #19513d;
+}
+
+.mineRow .dangerIcon {
+  background: #fff0ef;
+  color: #ad3d32;
+}
+
+.editModal form {
+  gap: 12px;
+}
+
+.modalBackdrop {
+  align-items: center;
+  background: rgba(20, 31, 26, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 30;
+}
+
+.detailModal {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+  max-height: min(720px, calc(100vh - 48px));
+  max-width: 620px;
+  overflow: auto;
+  padding: 24px;
+  position: relative;
+  width: min(100%, 620px);
+}
+
+.detailModal h2 {
+  font-size: 26px;
+  line-height: 1.2;
+  margin: 0 44px 18px 0;
+}
+
+.closeButton {
+  align-items: center;
+  background: #eef4f1;
+  border: 0;
+  border-radius: 6px;
+  color: #37594a;
+  cursor: pointer;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  width: 34px;
+}
+
+.detailRows {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  margin: 0;
+}
+
+.detailRows dt {
+  color: #66756d;
+  font-weight: 900;
+}
+
+.detailRows dd {
+  color: #202724;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1080px) {
   .topbar {
     grid-template-columns: 1fr;
@@ -630,5 +770,9 @@ textarea {
     align-items: stretch;
     display: grid;
     grid-template-columns: auto 1fr auto;
+  }
+
+  .detailRows {
+    grid-template-columns: 1fr;
   }
 }

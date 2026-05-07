@@ -21,6 +21,7 @@ public class Moment {
     private String author;
     private String petName;
     private String category;
+    private String city;
     private String imageUrl;
     private Integer likes;
     private LocalDateTime createdAt;

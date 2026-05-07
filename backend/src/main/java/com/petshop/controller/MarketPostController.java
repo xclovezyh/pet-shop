@@ -3,9 +3,13 @@ package com.petshop.controller;
 import com.petshop.model.MarketPost;
 import com.petshop.repository.MarketPostRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,12 +39,41 @@ public class MarketPostController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/{id}")
+    public MarketPost detail(@PathVariable Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "帖子不存在"));
+    }
+
     @PostMapping
     public MarketPost create(@RequestBody MarketPost post) {
         validate(post);
         post.setCreatedAt(LocalDateTime.now());
         post.setContact(CONTACT_VALUE);
         return repository.save(post);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id, @RequestParam String author) {
+        MarketPost post = detail(id);
+        if (!safe(post.getAuthor()).equals(author)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能删除自己的帖子");
+        }
+        repository.delete(post);
+    }
+
+    @PutMapping("/{id}")
+    public MarketPost update(@PathVariable Long id, @RequestParam String author, @RequestBody MarketPost update) {
+        MarketPost existing = detail(id);
+        if (!safe(existing.getAuthor()).equals(author)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能编辑自己的帖子");
+        }
+        update.setId(existing.getId());
+        update.setAuthor(existing.getAuthor());
+        update.setCreatedAt(existing.getCreatedAt());
+        update.setContact(CONTACT_VALUE);
+        validate(update);
+        return repository.save(update);
     }
 
     private void validate(MarketPost post) {

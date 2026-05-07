@@ -26,23 +26,18 @@ public class DataSeeder {
                                MarketPostRepository posts, MomentRepository moments,
                                ReferenceOptionRepository referenceOptions, RegionAreaRepository regions) {
         return args -> {
-            boolean hasReadableSeed = categories.findAll().stream()
-                    .anyMatch(category -> "猫咪".equals(category.getName()));
-            if (categories.count() > 0 && !hasReadableSeed) {
+            if (hasUnreadableCategories(categories)) {
                 moments.deleteAll();
                 posts.deleteAll();
                 pets.deleteAll();
                 categories.deleteAll();
             }
+            if (hasUnreadableReferenceData(referenceOptions, regions)) {
+                referenceOptions.deleteAll();
+                regions.deleteAll();
+            }
 
-            ensureCategory(categories, "猫咪", "温顺亲人，适合公寓和家庭陪伴。", "新手友好,安静,陪伴型");
-            ensureCategory(categories, "狗狗", "活泼忠诚，需要规律运动和训练。", "互动强,需要遛弯,家庭型");
-            ensureCategory(categories, "小宠", "仓鼠、兔子、龙猫、豚鼠等，占地小但需要细心照顾。", "空间小,易观察,轻陪伴");
-            ensureCategory(categories, "水族", "观赏性强，适合打造安静的家居角落。", "观赏型,低噪音,设备需求");
-            ensureCategory(categories, "鸟类", "鹦鹉、文鸟、金丝雀等，需要稳定笼舍和互动训练。", "鸣叫,训练,环境敏感");
-            ensureCategory(categories, "爬宠", "龟、守宫、蜥蜴、蛇等，重点关注温湿度和饲养箱。", "温控,进阶饲养,低互动");
-            ensureCategory(categories, "异宠", "蜜袋鼯、刺猬等特殊宠物，适合有经验的饲养者。", "特殊护理,经验要求,夜行");
-            ensureCategory(categories, "用品", "食品、玩具、猫爬架、牵引绳等宠物用品。", "闲置交易,日常消耗,养宠装备");
+            seedCategories(categories);
             seedReferenceData(referenceOptions, regions);
 
             if (pets.count() == 0) {
@@ -66,6 +61,30 @@ public class DataSeeder {
                 moments.save(moment("南栀", "蓝宝", "鸟类", "蓝宝今天终于愿意站上手指，奖励了最喜欢的小米穗。", 12));
             }
         };
+    }
+
+    private boolean hasUnreadableCategories(PetCategoryRepository categories) {
+        return categories.count() > 0 && categories.findAll().stream()
+                .noneMatch(category -> "猫咪".equals(category.getName()));
+    }
+
+    private boolean hasUnreadableReferenceData(ReferenceOptionRepository options, RegionAreaRepository regions) {
+        boolean badOptions = options.count() > 0 && options.findAll().stream()
+                .noneMatch(option -> "互换".equals(option.getLabel()));
+        boolean badRegions = regions.count() > 0 && regions.findAll().stream()
+                .noneMatch(region -> "上海市".equals(region.getName()));
+        return badOptions || badRegions;
+    }
+
+    private void seedCategories(PetCategoryRepository categories) {
+        ensureCategory(categories, "猫咪", "温顺亲人，适合公寓和家庭陪伴。", "新手友好,安静,陪伴型");
+        ensureCategory(categories, "狗狗", "活泼忠诚，需要规律运动和训练。", "互动强,需要遛弯,家庭型");
+        ensureCategory(categories, "小宠", "仓鼠、兔子、龙猫、豚鼠等，占地小但需要细心照顾。", "空间小,易观察,轻陪伴");
+        ensureCategory(categories, "水族", "观赏性强，适合打造安静的家居角落。", "观赏型,低噪音,设备需求");
+        ensureCategory(categories, "鸟类", "鹦鹉、文鸟、金丝雀等，需要稳定笼舍和互动训练。", "鸣叫,训练,环境敏感");
+        ensureCategory(categories, "爬宠", "龟、守宫、蜥蜴、蛇等，重点关注温湿度和饲养箱。", "温控,进阶饲养,低互动");
+        ensureCategory(categories, "异宠", "蜜袋鼯、刺猬等特殊宠物，适合有经验的饲养者。", "特殊护理,经验要求,夜行");
+        ensureCategory(categories, "用品", "食品、玩具、猫爬架、牵引绳等宠物用品。", "闲置交易,日常消耗,养宠装备");
     }
 
     private void ensureCategory(PetCategoryRepository categories, String name, String description, String tags) {
@@ -109,18 +128,6 @@ public class DataSeeder {
         ensureRegion(regions, "湖北省", new String[][]{
                 {"武汉市", "江岸区", "武昌区", "洪山区", "汉阳区"},
                 {"宜昌市", "西陵区", "伍家岗区"}
-        });
-        ensureRegion(regions, "山东省", new String[][]{
-                {"济南市", "历下区", "市中区", "槐荫区"},
-                {"青岛市", "市南区", "市北区", "崂山区", "黄岛区"}
-        });
-        ensureRegion(regions, "福建省", new String[][]{
-                {"福州市", "鼓楼区", "台江区", "仓山区"},
-                {"厦门市", "思明区", "湖里区", "集美区"}
-        });
-        ensureRegion(regions, "陕西省", new String[][]{
-                {"西安市", "雁塔区", "碑林区", "莲湖区", "未央区"},
-                {"咸阳市", "秦都区", "渭城区"}
         });
     }
 
@@ -221,6 +228,7 @@ public class DataSeeder {
         moment.setAuthor(author);
         moment.setPetName(petName);
         moment.setCategory(category);
+        moment.setCity("上海市 上海市 浦东新区");
         moment.setContent(content);
         moment.setLikes(likes);
         moment.setImageUrl("");
