@@ -232,6 +232,7 @@ h1 {
 }
 
 .categoryGrid,
+.referenceGrid,
 .petGrid,
 .momentGrid {
   display: grid;
@@ -240,6 +241,7 @@ h1 {
 }
 
 .category,
+.referencePanel,
 .petCard,
 .post,
 .moment,
@@ -255,7 +257,16 @@ h1 {
   padding: 22px;
 }
 
+.referenceGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.referencePanel {
+  padding: 20px;
+}
+
 .category h3,
+.referencePanel h3,
 .petCard h3,
 .post h3,
 .moment h3,
@@ -522,6 +533,56 @@ textarea {
   font-weight: 900;
 }
 
+.myPanel {
+  background: #fff;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(32, 39, 36, 0.06);
+  padding: 18px;
+}
+
+.mySummary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.mySummary div {
+  background: #eef5f1;
+  border: 1px solid #d7e5dc;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.mySummary strong {
+  color: #19513d;
+  display: block;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.mySummary span {
+  color: #53635b;
+  font-weight: 900;
+}
+
+.myColumns {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.myColumns h3 {
+  margin: 0 0 12px;
+}
+
+.emptyState {
+  color: #66756d;
+  font-weight: 800;
+  margin: 0;
+}
+
 @media (max-width: 1080px) {
   .topbar {
     grid-template-columns: 1fr;
@@ -550,8 +611,10 @@ textarea {
   }
 
   .categoryGrid,
+  .referenceGrid,
   .petGrid,
-  .momentGrid {
+  .momentGrid,
+  .myColumns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -567,9 +630,12 @@ textarea {
   }
 
   .categoryGrid,
+  .referenceGrid,
   .petGrid,
   .momentGrid,
-  .regionGrid {
+  .regionGrid,
+  .myColumns,
+  .mySummary {
     grid-template-columns: 1fr;
   }
 

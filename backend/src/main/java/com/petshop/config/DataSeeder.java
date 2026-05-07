@@ -35,7 +35,7 @@ public class DataSeeder {
                 categories.save(category("狗狗", "活泼忠诚，需要规律运动和训练。", "互动强,需要遛弯,家庭型"));
                 categories.save(category("小宠", "仓鼠、兔子、龙猫等，占地小但需要细心照顾。", "空间小,易观察,轻陪伴"));
                 categories.save(category("水族", "观赏性强，适合打造安静的家居角落。", "观赏型,低噪音,设备需求"));
-                categories.save(category("用品", "宠物食品、玩具、猫爬架、牵引绳等闲置或售卖用品。", "闲置交易,日常消耗,养宠装备"));
+                categories.save(category("用品", "食品、玩具、猫爬架、牵引绳等宠物用品。", "闲置交易,日常消耗,养宠装备"));
             }
 
             if (pets.count() == 0) {

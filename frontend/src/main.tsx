@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   Camera,
+  ClipboardList,
   Heart,
   Lock,
   LogIn,
@@ -20,6 +21,11 @@ import './styles.css';
 const API_BASE = '/api';
 const CONTACT_VALUE = '站内私信';
 const phonePattern = /(?:\+?86[-\s]?)?1[3-9]\d{9}/;
+
+type AppUser = {
+  id: number;
+  nickname: string;
+};
 
 type Category = {
   id: number;
@@ -72,11 +78,19 @@ type Region = {
   }>;
 };
 
-const regions: Region[] = [
-  {
-    name: '上海市',
-    cities: [{ name: '上海市', districts: ['浦东新区', '徐汇区', '静安区', '闵行区'] }]
-  },
+type ReferenceData = {
+  regions: Region[];
+  postTypes: string[];
+  petStatuses: string[];
+  petGenders: string[];
+  ageRanges: string[];
+  healthRecords: string[];
+  personalityTags: string[];
+  serviceTags: string[];
+};
+
+const fallbackRegions: Region[] = [
+  { name: '上海市', cities: [{ name: '上海市', districts: ['浦东新区', '徐汇区', '静安区', '闵行区'] }] },
   {
     name: '浙江省',
     cities: [
@@ -100,15 +114,30 @@ const regions: Region[] = [
   }
 ];
 
+const fallbackReferenceData: ReferenceData = {
+  regions: fallbackRegions,
+  postTypes: ['互换', '售卖', '领养', '闲置', '求助', '寄养', '寻宠', '相亲配种'],
+  petStatuses: ['在售', '可领养', '可互换', '已预订', '已成交', '暂不开放'],
+  petGenders: ['公', '母', '未知'],
+  ageRanges: ['幼年', '青年', '成年', '老年'],
+  healthRecords: ['疫苗齐全', '已驱虫', '已绝育', '体检正常', '需复查', '特殊护理'],
+  personalityTags: ['亲人', '安静', '活泼', '胆小', '独立', '粘人', '适合新手', '适合有经验家庭'],
+  serviceTags: ['站内私信', '同城自提', '线下看宠', '寄养互助', '闲置转让', '领养审核']
+};
+
 const demoCategories: Category[] = [
   { id: 1, name: '猫咪', description: '温顺亲人，适合公寓和家庭陪伴。', tags: '新手友好,安静,陪伴型' },
   { id: 2, name: '狗狗', description: '活泼忠诚，需要规律运动和训练。', tags: '互动强,需要遛弯,家庭型' },
   { id: 3, name: '小宠', description: '仓鼠、兔子、龙猫等，占地小但需要细心照顾。', tags: '空间小,易观察,轻陪伴' },
-  { id: 4, name: '水族', description: '观赏性强，适合打造安静的家居角落。', tags: '观赏型,低噪音,设备需求' }
+  { id: 4, name: '水族', description: '观赏性强，适合打造安静的家居角落。', tags: '观赏型,低噪音,设备需求' },
+  { id: 5, name: '鸟类', description: '鹦鹉、文鸟、金丝雀等，需要稳定笼舍和互动训练。', tags: '鸣叫,训练,环境敏感' },
+  { id: 6, name: '爬宠', description: '龟、守宫、蜥蜴、蛇等，重点关注温湿度和饲养箱。', tags: '温控,进阶饲养,低互动' },
+  { id: 7, name: '异宠', description: '蜜袋鼯、刺猬等特殊宠物，适合有经验的饲养者。', tags: '特殊护理,经验要求,夜行' },
+  { id: 8, name: '用品', description: '食品、玩具、猫爬架、牵引绳等宠物用品。', tags: '闲置交易,日常消耗,养宠装备' }
 ];
 
 const demoPets: Pet[] = [
-  { id: 1, name: '团子', category: '猫咪', breed: '英短银渐层', age: '8个月', city: '上海市 浦东新区', status: '在售', price: 1800, imageUrl: '', healthInfo: '疫苗齐全，已驱虫', personality: '安静亲人，喜欢陪睡' },
+  { id: 1, name: '团子', category: '猫咪', breed: '英短银渐层', age: '8个月', city: '上海市 上海市 浦东新区', status: '在售', price: 1800, imageUrl: '', healthInfo: '疫苗齐全，已驱虫', personality: '安静亲人，喜欢陪睡' },
   { id: 2, name: '可乐', category: '狗狗', breed: '柯基', age: '1岁', city: '浙江省 杭州市 西湖区', status: '可互换', price: 0, imageUrl: '', healthInfo: '体检正常，精力充沛', personality: '活泼黏人，会坐下握手' },
   { id: 3, name: '雪球', category: '小宠', breed: '侏儒兔', age: '5个月', city: '江苏省 南京市 玄武区', status: '可领养', price: 0, imageUrl: '', healthInfo: '健康，饮食稳定', personality: '胆小但熟悉后很亲近' }
 ];
@@ -116,7 +145,7 @@ const demoPets: Pet[] = [
 const demoPosts: MarketPost[] = [
   { id: 1, title: '想给柯基找同城互换寄养伙伴', type: '互换', category: '狗狗', city: '浙江省 杭州市 西湖区', description: '工作日偶尔出差，希望找同城稳定互助家庭。', author: '林小满', contact: CONTACT_VALUE, imageUrl: '' },
   { id: 2, title: '英短银渐层找新家', type: '售卖', category: '猫咪', city: '上海市 上海市 浦东新区', description: '自家猫宝宝，疫苗驱虫记录完整，可预约看猫。', author: '阿舟', contact: CONTACT_VALUE, imageUrl: '' },
-  { id: 3, title: '闲置猫爬架转让', type: '闲置', category: '猫咪', city: '江苏省 苏州市 姑苏区', description: '九成新，适合小户型，支持站内私信沟通。', author: '南栀', contact: CONTACT_VALUE, imageUrl: '' }
+  { id: 3, title: '闲置猫爬架转让', type: '闲置', category: '用品', city: '江苏省 苏州市 姑苏区', description: '九成新，适合小户型，支持站内私信沟通。', author: '南栀', contact: CONTACT_VALUE, imageUrl: '' }
 ];
 
 const demoMoments: Moment[] = [
@@ -146,16 +175,20 @@ function App() {
   const pets = useApi<Pet[]>('/pets', demoPets);
   const posts = useApi<MarketPost[]>('/posts', demoPosts);
   const moments = useApi<Moment[]>('/moments', demoMoments);
-  const [currentUser, setCurrentUser] = React.useState(() => localStorage.getItem('petshop_user') || '');
+  const referenceData = useApi<ReferenceData>('/reference-data', fallbackReferenceData);
+  const [currentUser, setCurrentUser] = React.useState<AppUser | null>(() => {
+    const raw = localStorage.getItem('petshop_user');
+    return raw ? JSON.parse(raw) : null;
+  });
 
-  function login(name: string) {
-    localStorage.setItem('petshop_user', name);
-    setCurrentUser(name);
+  function handleLogin(user: AppUser) {
+    localStorage.setItem('petshop_user', JSON.stringify(user));
+    setCurrentUser(user);
   }
 
   function logout() {
     localStorage.removeItem('petshop_user');
-    setCurrentUser('');
+    setCurrentUser(null);
   }
 
   const reloadFeeds = () => {
@@ -172,18 +205,20 @@ function App() {
         </div>
         <nav>
           <a href="#categories">分类</a>
+          <a href="#reference">基础信息</a>
           <a href="#pets">展示</a>
           <a href="#market">售卖互换</a>
           <a href="#moments">日常</a>
+          <a href="#mine">我的</a>
         </nav>
-        <LoginBox currentUser={currentUser} onLogin={login} onLogout={logout} />
+        <LoginBox currentUser={currentUser} onLogin={handleLogin} onLogout={logout} />
       </header>
 
       <section className="hero">
         <div className="heroCopy">
           <p className="eyebrow">宠物百科 · 站内沟通 · 同城社区</p>
           <h1>把宠物展示、交易互换和日常分享放在一个清爽空间里</h1>
-          <p className="lead">发布前需要登录；所有交易沟通仅支持站内私信，页面会拦截手机号，降低线下私联风险。</p>
+          <p className="lead">发布前需要登录；所有交易沟通仅支持站内私信，页面和后端都会拦截手机号。</p>
           <div className="search">
             <Search size={20} />
             <input placeholder="搜索猫咪、柯基、互换、领养、闲置用品" />
@@ -191,6 +226,7 @@ function App() {
         </div>
         <div className="heroPanel">
           <Metric value={categories.data.length} label="分类库" />
+          <Metric value={referenceData.data.regions.length} label="覆盖省市" />
           <Metric value={pets.data.length} label="展示宠物" />
           <Metric value={posts.data.length} label="交易帖子" />
         </div>
@@ -205,12 +241,22 @@ function App() {
               <h3>{category.name}</h3>
               <p>{category.description}</p>
               <div className="chips">
-                {category.tags.split(',').map((tag) => (
-                  <span key={tag}>{tag}</span>
-                ))}
+                {category.tags.split(',').map((tag) => <span key={tag}>{tag}</span>)}
               </div>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section id="reference" className="section">
+        <SectionTitle icon={<ClipboardList />} title="常用基础信息" helper="发布、筛选和审核会复用这套枚举与地区数据" />
+        <div className="referenceGrid">
+          <ReferencePanel title="省市区" values={referenceData.data.regions.map((region) => region.name)} />
+          <ReferencePanel title="发布类型" values={referenceData.data.postTypes} />
+          <ReferencePanel title="宠物状态" values={referenceData.data.petStatuses} />
+          <ReferencePanel title="健康记录" values={referenceData.data.healthRecords} />
+          <ReferencePanel title="性格标签" values={referenceData.data.personalityTags} />
+          <ReferencePanel title="服务标签" values={referenceData.data.serviceTags} />
         </div>
       </section>
 
@@ -241,80 +287,153 @@ function App() {
       <section id="market" className="section split">
         <div>
           <SectionTitle icon={<Plus />} title="售卖 / 互换 / 领养帖子" helper="所有联系入口统一为站内私信" />
-          <div className="postList">
-            {posts.data.map((post) => (
-              <article className="post" key={post.id}>
-                <div className="between">
-                  <span className="type">{post.type}</span>
-                  <span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span>
-                </div>
-                <h3>{post.title}</h3>
-                <p>{post.description}</p>
-                <div className="postMeta">
-                  <span>{post.category}</span>
-                  <span>{post.city}</span>
-                  <span>{post.author}</span>
-                </div>
-              </article>
-            ))}
-          </div>
+          <PostList posts={posts.data} />
         </div>
-        <Composer categories={categories.data} currentUser={currentUser} onSuccess={reloadFeeds} />
+        <Composer categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onSuccess={reloadFeeds} />
       </section>
 
       <section id="moments" className="section">
         <SectionTitle icon={<Camera />} title="用户日常分享" helper="记录宠物近况、养护经验和可爱的日常瞬间" />
-        <div className="momentGrid">
-          {moments.data.map((moment) => (
-            <article className="moment" key={moment.id}>
-              {imageBox(moment.imageUrl, moment.petName || moment.author)}
-              <div>
-                <span className="type">{moment.category || '日常'}</span>
-                <h3>{moment.author} 和 {moment.petName}</h3>
-                <p>{moment.content}</p>
-                <span className="likes"><Heart size={15} />{moment.likes}</span>
-              </div>
-            </article>
-          ))}
-        </div>
+        <MomentList moments={moments.data} />
+      </section>
+
+      <section id="mine" className="section">
+        <SectionTitle icon={<User />} title="我的发布" helper="登录后可集中查看自己发布的交易帖和日常" />
+        <MyPanel currentUser={currentUser} posts={posts.data} moments={moments.data} />
       </section>
     </main>
   );
 }
 
-function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: string; onLogin: (name: string) => void; onLogout: () => void }) {
+function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: AppUser | null; onLogin: (user: AppUser) => void; onLogout: () => void }) {
   const [name, setName] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
 
   if (currentUser) {
     return (
       <div className="userBadge">
         <User size={16} />
-        <span>{currentUser}</span>
+        <span>{currentUser.nickname}</span>
         <button type="button" onClick={onLogout}>退出</button>
       </div>
     );
   }
 
-  return (
-    <form className="loginBox" onSubmit={(event) => {
-      event.preventDefault();
-      if (name.trim()) {
-        onLogin(name.trim());
-        setName('');
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nickname = name.trim();
+    setError('');
+    if (!nickname) {
+      setError('请输入昵称');
+      return;
+    }
+    if (phonePattern.test(nickname)) {
+      setError('昵称不能使用手机号');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_BASE}/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname })
+      });
+      if (!res.ok) {
+        throw new Error(await readError(res));
       }
-    }}>
+      const user = await res.json();
+      onLogin(user);
+      setName('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登录失败，请检查后端服务。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="loginBox" onSubmit={submit} title={error || '登录后可发布'}>
       <LogIn size={16} />
-      <input value={name} onChange={(event) => setName(event.target.value)} placeholder="昵称登录" />
-      <button type="submit">登录</button>
+      <input value={name} onChange={(event) => setName(event.target.value)} placeholder={error || '昵称登录'} />
+      <button type="submit" disabled={busy}>{busy ? '...' : '登录'}</button>
     </form>
   );
 }
 
-function Composer({ categories, currentUser, onSuccess }: { categories: Category[]; currentUser: string; onSuccess: () => void }) {
+function PostList({ posts }: { posts: MarketPost[] }) {
+  return (
+    <div className="postList">
+      {posts.map((post) => (
+        <article className="post" key={post.id}>
+          <div className="between">
+            <span className="type">{post.type}</span>
+            <span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span>
+          </div>
+          <h3>{post.title}</h3>
+          <p>{post.description}</p>
+          <div className="postMeta">
+            <span>{post.category}</span>
+            <span>{post.city}</span>
+            <span>{post.author}</span>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function MomentList({ moments }: { moments: Moment[] }) {
+  return (
+    <div className="momentGrid">
+      {moments.map((moment) => (
+        <article className="moment" key={moment.id}>
+          {imageBox(moment.imageUrl, moment.petName || moment.author)}
+          <div>
+            <span className="type">{moment.category || '日常'}</span>
+            <h3>{moment.author} 和 {moment.petName}</h3>
+            <p>{moment.content}</p>
+            <span className="likes"><Heart size={15} />{moment.likes}</span>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function MyPanel({ currentUser, posts, moments }: { currentUser: AppUser | null; posts: MarketPost[]; moments: Moment[] }) {
+  if (!currentUser) {
+    return <div className="myPanel emptyState">登录后，这里会显示你发布的交易帖和日常。</div>;
+  }
+  const myPosts = posts.filter((post) => post.author === currentUser.nickname);
+  const myMoments = moments.filter((moment) => moment.author === currentUser.nickname);
+
+  return (
+    <div className="myPanel">
+      <div className="mySummary">
+        <div><strong>{myPosts.length}</strong><span>我的帖子</span></div>
+        <div><strong>{myMoments.length}</strong><span>我的日常</span></div>
+      </div>
+      <div className="myColumns">
+        <div>
+          <h3>交易帖</h3>
+          {myPosts.length ? <PostList posts={myPosts} /> : <p className="emptyState">还没有发布交易帖。</p>}
+        </div>
+        <div>
+          <h3>日常</h3>
+          {myMoments.length ? <MomentList moments={myMoments} /> : <p className="emptyState">还没有发布日常。</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Composer({ categories, referenceData, currentUser, onSuccess }: { categories: Category[]; referenceData: ReferenceData; currentUser: AppUser | null; onSuccess: () => void }) {
   const [mode, setMode] = React.useState<'post' | 'moment'>('post');
   const [imageUrl, setImageUrl] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
+  const regions = referenceData.regions.length ? referenceData.regions : fallbackRegions;
   const [province, setProvince] = React.useState(regions[0].name);
   const selectedProvince = regions.find((item) => item.name === province) || regions[0];
   const [city, setCity] = React.useState(selectedProvince.cities[0].name);
@@ -330,6 +449,15 @@ function Composer({ categories, currentUser, onSuccess }: { categories: Category
   React.useEffect(() => {
     setDistrict(selectedCity.districts[0]);
   }, [city]);
+
+  React.useEffect(() => {
+    if (!regions.some((item) => item.name === province)) {
+      const nextProvince = regions[0];
+      setProvince(nextProvince.name);
+      setCity(nextProvince.cities[0].name);
+      setDistrict(nextProvince.cities[0].districts[0]);
+    }
+  }, [regions, province]);
 
   async function upload(file: File) {
     setError('');
@@ -365,7 +493,7 @@ function Composer({ categories, currentUser, onSuccess }: { categories: Category
     }
 
     setBusy(true);
-    body.author = currentUser;
+    body.author = currentUser.nickname;
     body.city = `${province} ${city} ${district}`;
     body.contact = CONTACT_VALUE;
     if (imageUrl) {
@@ -395,7 +523,7 @@ function Composer({ categories, currentUser, onSuccess }: { categories: Category
     <aside className="composer">
       <div className="composerHeader">
         <h3>发布中心</h3>
-        <span>{currentUser ? `当前用户：${currentUser}` : '登录后可发布'}</span>
+        <span>{currentUser ? `当前用户：${currentUser.nickname}` : '登录后可发布'}</span>
       </div>
       <div className="tabs">
         <button type="button" className={mode === 'post' ? 'active' : ''} onClick={() => setMode('post')}>交易帖</button>
@@ -407,27 +535,19 @@ function Composer({ categories, currentUser, onSuccess }: { categories: Category
           <span>请先在右上角登录，之后才能发布帖子或日常。</span>
         </div>
       )}
-      <form onSubmit={submit} className={!currentUser ? 'disabledForm' : ''}>
+      <form onSubmit={submit}>
         {mode === 'post' ? (
           <>
             <input name="title" placeholder="标题" required disabled={!currentUser} />
-            <select name="type" defaultValue="互换" disabled={!currentUser}>
-              <option>互换</option>
-              <option>售卖</option>
-              <option>领养</option>
-              <option>闲置</option>
-              <option>求助</option>
+            <select name="type" defaultValue={referenceData.postTypes[0] || '互换'} disabled={!currentUser}>
+              {referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}
             </select>
           </>
         ) : (
-          <>
-            <input name="petName" placeholder="宠物名字" required disabled={!currentUser} />
-          </>
+          <input name="petName" placeholder="宠物名字" required disabled={!currentUser} />
         )}
         <select name="category" required disabled={!currentUser}>
-          {categories.map((category) => (
-            <option key={category.id} value={category.name}>{category.name}</option>
-          ))}
+          {categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
         </select>
         <RegionPicker
           province={province}
@@ -435,6 +555,7 @@ function Composer({ categories, currentUser, onSuccess }: { categories: Category
           district={district}
           selectedProvince={selectedProvince}
           selectedCity={selectedCity}
+          regions={regions}
           disabled={!currentUser}
           onProvince={setProvince}
           onCity={setCity}
@@ -464,9 +585,9 @@ function Composer({ categories, currentUser, onSuccess }: { categories: Category
 async function readError(res: Response) {
   try {
     const data = await res.json();
-    return data.message || data.error || '发布失败，请检查填写内容。';
+    return data.message || data.error || '请求失败，请检查填写内容。';
   } catch {
-    return '发布失败，请检查后端服务是否正常运行。';
+    return '请求失败，请检查后端服务是否正常运行。';
   }
 }
 
@@ -476,6 +597,7 @@ function RegionPicker(props: {
   district: string;
   selectedProvince: Region;
   selectedCity: Region['cities'][number];
+  regions: Region[];
   disabled: boolean;
   onProvince: (value: string) => void;
   onCity: (value: string) => void;
@@ -484,7 +606,7 @@ function RegionPicker(props: {
   return (
     <div className="regionGrid">
       <select value={props.province} disabled={props.disabled} onChange={(event) => props.onProvince(event.target.value)}>
-        {regions.map((item) => <option key={item.name}>{item.name}</option>)}
+        {props.regions.map((item) => <option key={item.name}>{item.name}</option>)}
       </select>
       <select value={props.city} disabled={props.disabled} onChange={(event) => props.onCity(event.target.value)}>
         {props.selectedProvince.cities.map((item) => <option key={item.name}>{item.name}</option>)}
@@ -493,6 +615,17 @@ function RegionPicker(props: {
         {props.selectedCity.districts.map((item) => <option key={item}>{item}</option>)}
       </select>
     </div>
+  );
+}
+
+function ReferencePanel({ title, values }: { title: string; values: string[] }) {
+  return (
+    <article className="referencePanel">
+      <h3>{title}</h3>
+      <div className="chips">
+        {values.slice(0, 10).map((value) => <span key={value}>{value}</span>)}
+      </div>
+    </article>
   );
 }
 
