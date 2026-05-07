@@ -1,0 +1,26 @@
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Backend build output and local runtime files
+backend/target/
+backend/uploads/
+
+# Logs
+*.log
+frontend/vite.log
+frontend/vite.err.log
+backend/spring.log
+backend/spring.err.log
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
