@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   Camera,
-  ClipboardList,
   Heart,
   Lock,
   LogIn,
@@ -205,7 +204,6 @@ function App() {
         </div>
         <nav>
           <a href="#categories">分类</a>
-          <a href="#reference">基础信息</a>
           <a href="#pets">展示</a>
           <a href="#market">售卖互换</a>
           <a href="#moments">日常</a>
@@ -226,7 +224,6 @@ function App() {
         </div>
         <div className="heroPanel">
           <Metric value={categories.data.length} label="分类库" />
-          <Metric value={referenceData.data.regions.length} label="覆盖省市" />
           <Metric value={pets.data.length} label="展示宠物" />
           <Metric value={posts.data.length} label="交易帖子" />
         </div>
@@ -245,18 +242,6 @@ function App() {
               </div>
             </article>
           ))}
-        </div>
-      </section>
-
-      <section id="reference" className="section">
-        <SectionTitle icon={<ClipboardList />} title="常用基础信息" helper="发布、筛选和审核会复用这套枚举与地区数据" />
-        <div className="referenceGrid">
-          <ReferencePanel title="省市区" values={referenceData.data.regions.map((region) => region.name)} />
-          <ReferencePanel title="发布类型" values={referenceData.data.postTypes} />
-          <ReferencePanel title="宠物状态" values={referenceData.data.petStatuses} />
-          <ReferencePanel title="健康记录" values={referenceData.data.healthRecords} />
-          <ReferencePanel title="性格标签" values={referenceData.data.personalityTags} />
-          <ReferencePanel title="服务标签" values={referenceData.data.serviceTags} />
         </div>
       </section>
 
@@ -615,17 +600,6 @@ function RegionPicker(props: {
         {props.selectedCity.districts.map((item) => <option key={item}>{item}</option>)}
       </select>
     </div>
-  );
-}
-
-function ReferencePanel({ title, values }: { title: string; values: string[] }) {
-  return (
-    <article className="referencePanel">
-      <h3>{title}</h3>
-      <div className="chips">
-        {values.slice(0, 10).map((value) => <span key={value}>{value}</span>)}
-      </div>
-    </article>
   );
 }
 

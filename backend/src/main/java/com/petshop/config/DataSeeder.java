@@ -4,10 +4,14 @@ import com.petshop.model.MarketPost;
 import com.petshop.model.Moment;
 import com.petshop.model.Pet;
 import com.petshop.model.PetCategory;
+import com.petshop.model.ReferenceOption;
+import com.petshop.model.RegionArea;
 import com.petshop.repository.MarketPostRepository;
 import com.petshop.repository.MomentRepository;
 import com.petshop.repository.PetCategoryRepository;
 import com.petshop.repository.PetRepository;
+import com.petshop.repository.ReferenceOptionRepository;
+import com.petshop.repository.RegionAreaRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +23,8 @@ import java.time.LocalDateTime;
 public class DataSeeder {
     @Bean
     CommandLineRunner seedData(PetCategoryRepository categories, PetRepository pets,
-                               MarketPostRepository posts, MomentRepository moments) {
+                               MarketPostRepository posts, MomentRepository moments,
+                               ReferenceOptionRepository referenceOptions, RegionAreaRepository regions) {
         return args -> {
             boolean hasReadableSeed = categories.findAll().stream()
                     .anyMatch(category -> "猫咪".equals(category.getName()));
@@ -38,6 +43,7 @@ public class DataSeeder {
             ensureCategory(categories, "爬宠", "龟、守宫、蜥蜴、蛇等，重点关注温湿度和饲养箱。", "温控,进阶饲养,低互动");
             ensureCategory(categories, "异宠", "蜜袋鼯、刺猬等特殊宠物，适合有经验的饲养者。", "特殊护理,经验要求,夜行");
             ensureCategory(categories, "用品", "食品、玩具、猫爬架、牵引绳等宠物用品。", "闲置交易,日常消耗,养宠装备");
+            seedReferenceData(referenceOptions, regions);
 
             if (pets.count() == 0) {
                 pets.save(pet("团子", "猫咪", "英短银渐层", "8个月", "上海市 上海市 浦东新区", "在售", "疫苗齐全，已驱虫", "安静亲人，喜欢陪睡", new BigDecimal("1800")));
@@ -68,6 +74,106 @@ public class DataSeeder {
         if (!exists) {
             categories.save(category(name, description, tags));
         }
+    }
+
+    private void seedReferenceData(ReferenceOptionRepository referenceOptions, RegionAreaRepository regions) {
+        ensureOptions(referenceOptions, "post_type", "互换", "售卖", "领养", "闲置", "求助", "寄养", "寻宠", "相亲配种");
+        ensureOptions(referenceOptions, "pet_status", "在售", "可领养", "可互换", "已预订", "已成交", "暂不开放");
+        ensureOptions(referenceOptions, "pet_gender", "公", "母", "未知");
+        ensureOptions(referenceOptions, "age_range", "幼年", "青年", "成年", "老年");
+        ensureOptions(referenceOptions, "health_record", "疫苗齐全", "已驱虫", "已绝育", "体检正常", "需复查", "特殊护理");
+        ensureOptions(referenceOptions, "personality_tag", "亲人", "安静", "活泼", "胆小", "独立", "粘人", "适合新手", "适合有经验家庭");
+        ensureOptions(referenceOptions, "service_tag", "站内私信", "同城自提", "线下看宠", "寄养互助", "闲置转让", "领养审核");
+
+        ensureRegion(regions, "北京市", new String[][]{{"北京市", "东城区", "西城区", "朝阳区", "海淀区", "丰台区", "通州区"}});
+        ensureRegion(regions, "上海市", new String[][]{{"上海市", "浦东新区", "徐汇区", "静安区", "闵行区", "杨浦区", "松江区"}});
+        ensureRegion(regions, "广东省", new String[][]{
+                {"广州市", "天河区", "越秀区", "海珠区", "番禺区", "白云区"},
+                {"深圳市", "南山区", "福田区", "罗湖区", "宝安区", "龙岗区"},
+                {"佛山市", "禅城区", "南海区", "顺德区"}
+        });
+        ensureRegion(regions, "浙江省", new String[][]{
+                {"杭州市", "西湖区", "拱墅区", "滨江区", "余杭区", "萧山区"},
+                {"宁波市", "海曙区", "鄞州区", "江北区"},
+                {"温州市", "鹿城区", "瓯海区", "龙湾区"}
+        });
+        ensureRegion(regions, "江苏省", new String[][]{
+                {"南京市", "玄武区", "秦淮区", "建邺区", "鼓楼区"},
+                {"苏州市", "姑苏区", "吴中区", "工业园区", "昆山市"},
+                {"无锡市", "梁溪区", "滨湖区", "惠山区"}
+        });
+        ensureRegion(regions, "四川省", new String[][]{
+                {"成都市", "锦江区", "青羊区", "武侯区", "高新区", "双流区"},
+                {"绵阳市", "涪城区", "游仙区"}
+        });
+        ensureRegion(regions, "湖北省", new String[][]{
+                {"武汉市", "江岸区", "武昌区", "洪山区", "汉阳区"},
+                {"宜昌市", "西陵区", "伍家岗区"}
+        });
+        ensureRegion(regions, "山东省", new String[][]{
+                {"济南市", "历下区", "市中区", "槐荫区"},
+                {"青岛市", "市南区", "市北区", "崂山区", "黄岛区"}
+        });
+        ensureRegion(regions, "福建省", new String[][]{
+                {"福州市", "鼓楼区", "台江区", "仓山区"},
+                {"厦门市", "思明区", "湖里区", "集美区"}
+        });
+        ensureRegion(regions, "陕西省", new String[][]{
+                {"西安市", "雁塔区", "碑林区", "莲湖区", "未央区"},
+                {"咸阳市", "秦都区", "渭城区"}
+        });
+    }
+
+    private void ensureOptions(ReferenceOptionRepository repository, String optionType, String... labels) {
+        for (int i = 0; i < labels.length; i++) {
+            ensureOption(repository, optionType, labels[i], i + 1);
+        }
+    }
+
+    private void ensureOption(ReferenceOptionRepository repository, String optionType, String label, int sortOrder) {
+        boolean exists = repository.findByOptionTypeOrderBySortOrderAscIdAsc(optionType).stream()
+                .anyMatch(option -> label.equals(option.getLabel()));
+        if (!exists) {
+            ReferenceOption option = new ReferenceOption();
+            option.setOptionType(optionType);
+            option.setLabel(label);
+            option.setSortOrder(sortOrder);
+            repository.save(option);
+        }
+    }
+
+    private void ensureRegion(RegionAreaRepository repository, String provinceName, String[][] cityRows) {
+        RegionArea province = ensureArea(repository, "province", provinceName, null, nextSort(repository, "province", null));
+        for (int i = 0; i < cityRows.length; i++) {
+            String[] cityRow = cityRows[i];
+            RegionArea city = ensureArea(repository, "city", cityRow[0], province.getId(), i + 1);
+            for (int j = 1; j < cityRow.length; j++) {
+                ensureArea(repository, "district", cityRow[j], city.getId(), j);
+            }
+        }
+    }
+
+    private RegionArea ensureArea(RegionAreaRepository repository, String level, String name, Long parentId, int sortOrder) {
+        return repository.findAll().stream()
+                .filter(area -> level.equals(area.getLevel()))
+                .filter(area -> name.equals(area.getName()))
+                .filter(area -> parentId == null ? area.getParentId() == null : parentId.equals(area.getParentId()))
+                .findFirst()
+                .orElseGet(() -> {
+                    RegionArea area = new RegionArea();
+                    area.setLevel(level);
+                    area.setName(name);
+                    area.setParentId(parentId);
+                    area.setSortOrder(sortOrder);
+                    return repository.save(area);
+                });
+    }
+
+    private int nextSort(RegionAreaRepository repository, String level, Long parentId) {
+        return (int) repository.findAll().stream()
+                .filter(area -> level.equals(area.getLevel()))
+                .filter(area -> parentId == null ? area.getParentId() == null : parentId.equals(area.getParentId()))
+                .count() + 1;
     }
 
     private PetCategory category(String name, String description, String tags) {

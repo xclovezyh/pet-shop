@@ -232,7 +232,6 @@ h1 {
 }
 
 .categoryGrid,
-.referenceGrid,
 .petGrid,
 .momentGrid {
   display: grid;
@@ -241,7 +240,6 @@ h1 {
 }
 
 .category,
-.referencePanel,
 .petCard,
 .post,
 .moment,
@@ -257,16 +255,7 @@ h1 {
   padding: 22px;
 }
 
-.referenceGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.referencePanel {
-  padding: 20px;
-}
-
 .category h3,
-.referencePanel h3,
 .petCard h3,
 .post h3,
 .moment h3,
@@ -611,7 +600,6 @@ textarea {
   }
 
   .categoryGrid,
-  .referenceGrid,
   .petGrid,
   .momentGrid,
   .myColumns {
@@ -630,7 +618,6 @@ textarea {
   }
 
   .categoryGrid,
-  .referenceGrid,
   .petGrid,
   .momentGrid,
   .regionGrid,
