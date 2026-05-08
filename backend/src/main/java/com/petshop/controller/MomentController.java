@@ -4,6 +4,7 @@ import com.petshop.model.Moment;
 import com.petshop.model.MomentComment;
 import com.petshop.repository.MomentCommentRepository;
 import com.petshop.repository.MomentRepository;
+import com.petshop.support.ContentSafety;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,15 +20,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/moments")
 public class MomentController {
-    private static final Pattern PHONE_PATTERN = Pattern.compile("(?:\\+?86[-\\s]?)?1[3-9]\\d{9}");
-    private static final Pattern OFFSITE_CONTACT_PATTERN = Pattern.compile("(?i)(微信|vx|wechat|qq|企鹅|扣扣)[:：\\s-]*[a-z0-9_-]{4,}|[1-9]\\d{5,11}");
-
     private final MomentRepository repository;
     private final MomentCommentRepository comments;
 
@@ -121,9 +118,7 @@ public class MomentController {
     }
 
     private void validateText(String content) {
-        if (PHONE_PATTERN.matcher(content).find() || OFFSITE_CONTACT_PATTERN.matcher(content).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "禁止填写手机号、微信号或 QQ 号，请使用站内沟通");
-        }
+        ContentSafety.validate(content);
     }
 
     private boolean isBlank(String value) {

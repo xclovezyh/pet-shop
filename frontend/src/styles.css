@@ -969,6 +969,19 @@ textarea {
   background: #b65b32;
 }
 
+.reportAction {
+  align-items: center;
+  background: #fff0ef;
+  border: 1px solid #f0cbc7;
+  border-radius: 6px;
+  color: #ad3d32;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 900;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
 .momentInteraction {
   border-top: 1px solid #dfe7e2;
   display: grid;

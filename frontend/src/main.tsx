@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   Camera,
+  Flag,
   Heart,
   Lock,
   LogIn,
@@ -24,6 +25,7 @@ const API_BASE = '/api';
 const CONTACT_VALUE = '站内私信';
 const phonePattern = /(?:\+?86[-\s]?)?1[3-9]\d{9}/;
 const offsiteContactPattern = /(?:微信|vx|wechat|qq|企鹅|扣扣)[:：\s-]*[a-z0-9_-]{4,}|[1-9]\d{5,11}/i;
+const sensitiveWords = ['虐待', '毒药', '赌博', '色情', '诈骗', '保护动物', '野生动物', '线下交易', '加微信', '加qq'];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const tradeStatuses = ['在售', '已预约', '已成交', '已关闭'];
@@ -269,6 +271,26 @@ function App() {
     loadFavorites();
   }
 
+  async function reportContent(type: 'post' | 'moment', id: number) {
+    if (!currentUser) {
+      alert('请先登录后再举报内容。');
+      return;
+    }
+    const reason = window.prompt('请填写举报原因');
+    const text = (reason || '').trim();
+    if (!text) return;
+    if (hasUnsafeContent(text)) {
+      alert('举报原因不能包含手机号、微信号、QQ号或敏感词。');
+      return;
+    }
+    const res = await fetch(`${API_BASE}/reports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetType: type, targetId: id, reporter: currentUser.nickname, reason: text })
+    });
+    alert(res.ok ? '举报已提交，等待处理。' : await readError(res));
+  }
+
   const favoriteIds = new Set(favoritePosts.map((post) => post.id));
   const unreadCount = threads.reduce((count, thread) => count + (thread.unreadCount || 0), 0);
 
@@ -337,7 +359,7 @@ function App() {
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
       {page === 'favorites' && <FavoritesPage currentUser={currentUser} posts={favoritePosts} favoriteIds={favoriteIds} onOpen={(post) => setDetail({ type: 'post', item: post })} onToggleFavorite={toggleFavorite} />}
 
-      {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} onFavorite={toggleFavorite} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} onFavorite={toggleFavorite} onReport={reportContent} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
     </main>
   );
@@ -781,7 +803,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     if (!currentUser) return setError('请先登录后再发布内容。');
     const form = new FormData(formElement);
     const body = Object.fromEntries(form.entries());
-    if (hasOffsiteContact(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号或 QQ 号，平台只允许站内沟通。');
+    if (hasUnsafeContent(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号、QQ 号或敏感词，平台只允许站内沟通。');
     setBusy(true);
     body.author = currentUser.nickname;
     body.city = `${province} ${city} ${district}`;
@@ -864,7 +886,7 @@ function EditModal(props: {
     if (!props.currentUser) return setError('请先登录后再编辑内容。');
     const form = new FormData(event.currentTarget);
     const body = Object.fromEntries(form.entries());
-    if (hasOffsiteContact(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号或 QQ 号，平台只允许站内沟通。');
+    if (hasUnsafeContent(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号、QQ 号或敏感词，平台只允许站内沟通。');
     setBusy(true);
     setError('');
     body.author = props.currentUser.nickname;
@@ -951,8 +973,8 @@ function ProfilePanel(props: {
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus('');
-    if (hasOffsiteContact(`${avatarUrl} ${bio} ${city}`)) {
-      return setStatus('个人资料不能填写手机号、微信号或 QQ 号，请使用站内沟通。');
+    if (hasUnsafeContent(`${avatarUrl} ${bio} ${city}`)) {
+      return setStatus('个人资料不能填写手机号、微信号、QQ 号或敏感词，请使用站内沟通。');
     }
     try {
       const res = await fetch(`${API_BASE}/users/${props.currentUser!.id}`, {
@@ -1033,8 +1055,8 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
     setError('');
     if (!currentUser) return;
     if (!activeThread || !content) return;
-    if (hasOffsiteContact(content)) {
-      setError('私信内容不能填写手机号、微信号或 QQ 号，请使用站内沟通。');
+    if (hasUnsafeContent(content)) {
+      setError('私信内容不能填写手机号、微信号、QQ 号或敏感词，请使用站内沟通。');
       return;
     }
     const res = await fetch(`${API_BASE}/messages/${activeThread.id}`, {
@@ -1078,7 +1100,7 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
   );
 }
 
-function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onMessage, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; favoriteIds: Set<number>; onFavorite: (post: MarketPost) => void; onMessage: (post: MarketPost) => void; onMomentChanged: () => void; onClose: () => void }) {
+function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, onMessage, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; favoriteIds: Set<number>; onFavorite: (post: MarketPost) => void; onReport: (type: 'post' | 'moment', id: number) => void; onMessage: (post: MarketPost) => void; onMomentChanged: () => void; onClose: () => void }) {
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
@@ -1099,6 +1121,7 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onMessage, 
         {post && <div className="detailActions">
           <button type="button" className={favoriteIds.has(post.id) ? 'messageAction favoriteActive' : 'messageAction'} onClick={() => onFavorite(post)}><Heart size={18} />{favoriteIds.has(post.id) ? '已收藏' : '收藏帖子'}</button>
           <button type="button" className="messageAction" onClick={() => onMessage(post)}><MessageCircle size={18} />私信发布者</button>
+          <button type="button" className="reportAction" onClick={() => onReport('post', post.id)}><Flag size={18} />举报</button>
         </div>}
         {detail.type === 'moment' && <DetailRows rows={[
           ['分类', (item as Moment).category || '日常'],
@@ -1108,6 +1131,9 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onMessage, 
           ['点赞', String((item as Moment).likes)],
           ['内容', (item as Moment).content]
         ]} />}
+        {detail.type === 'moment' && <div className="detailActions">
+          <button type="button" className="reportAction" onClick={() => onReport('moment', (item as Moment).id)}><Flag size={18} />举报</button>
+        </div>}
         {detail.type === 'moment' && <MomentInteraction moment={item as Moment} currentUser={currentUser} onChanged={onMomentChanged} />}
         {detail.type === 'pet' && <DetailRows rows={[
           ['分类', (item as Pet).category],
@@ -1153,7 +1179,7 @@ function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment;
     setError('');
     if (!currentUser) return setError('请先登录后再评论。');
     if (!text) return setError('请输入评论内容。');
-    if (hasOffsiteContact(text)) return setError('评论不能填写手机号、微信号或 QQ 号。');
+    if (hasUnsafeContent(text)) return setError('评论不能填写手机号、微信号、QQ 号或敏感词。');
     const res = await fetch(`${API_BASE}/moments/${moment.id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1221,6 +1247,15 @@ function matchesText(query: string, fields: Array<string | undefined>) {
 
 function hasOffsiteContact(value: string) {
   return phonePattern.test(value) || offsiteContactPattern.test(value);
+}
+
+function hasSensitiveWord(value: string) {
+  const text = value.toLowerCase();
+  return sensitiveWords.some((word) => text.includes(word.toLowerCase()));
+}
+
+function hasUnsafeContent(value: string) {
+  return hasOffsiteContact(value) || hasSensitiveWord(value);
 }
 
 function sortByTime<T extends { createdAt?: string }>(items: T[], mode: 'latest' | 'oldest') {
