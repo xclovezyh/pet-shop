@@ -375,11 +375,35 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function closeOnOutside(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function closeOnScroll() {
+      setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', closeOnOutside);
+    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
 
   if (currentUser) {
     return (
-      <div className="userMenu">
-        <button type="button" className="userMenuTrigger" onClick={() => setOpen(!open)}>
+      <div className="userMenu" ref={menuRef}>
+        <button type="button" className="userMenuTrigger" aria-expanded={open} onClick={() => setOpen(!open)}>
           <span className="avatarMini">{currentUser.nickname.slice(0, 1)}</span>
           <span>{currentUser.nickname}</span>
           {unreadCount > 0 && <em>{unreadCount}</em>}
