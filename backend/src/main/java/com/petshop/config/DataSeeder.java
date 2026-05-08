@@ -218,6 +218,7 @@ public class DataSeeder {
         post.setDescription(description);
         post.setAuthor("示例用户");
         post.setContact("站内私信");
+        post.setStatus("在售");
         post.setImageUrl("");
         post.setCreatedAt(LocalDateTime.now());
         return post;

@@ -18,6 +18,11 @@ public class AppUser {
     private Long id;
 
     private String nickname;
+    private String avatarUrl;
+    private String city;
     private LocalDateTime createdAt;
+
+    @javax.persistence.Column(length = 500)
+    private String bio;
 }
 

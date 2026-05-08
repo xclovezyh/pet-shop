@@ -25,6 +25,7 @@ public class MarketPost {
     private String imageUrl;
     private String contact;
     private String author;
+    private String status;
     private LocalDateTime createdAt;
 
     @Column(length = 1000)

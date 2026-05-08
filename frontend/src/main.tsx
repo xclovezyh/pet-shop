@@ -25,8 +25,10 @@ const CONTACT_VALUE = '站内私信';
 const phonePattern = /(?:\+?86[-\s]?)?1[3-9]\d{9}/;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const tradeStatuses = ['在售', '已预约', '已成交', '已关闭'];
 
 type AppUser = { id: number; nickname: string };
+type UserProfile = AppUser & { avatarUrl?: string; bio?: string; city?: string };
 type Category = { id: number; name: string; description: string; tags: string };
 type Pet = {
   id: number;
@@ -52,6 +54,7 @@ type MarketPost = {
   author: string;
   contact: string;
   imageUrl: string;
+  status?: string;
   createdAt?: string;
 };
 type Moment = {
@@ -140,7 +143,7 @@ function App() {
   const [cityFilter, setCityFilter] = React.useState('全部');
   const [typeFilter, setTypeFilter] = React.useState('全部');
   const [sortMode, setSortMode] = React.useState<'latest' | 'oldest'>('latest');
-  const [currentUser, setCurrentUser] = React.useState<AppUser | null>(() => {
+  const [currentUser, setCurrentUser] = React.useState<UserProfile | null>(() => {
     const raw = localStorage.getItem('petshop_user');
     return raw ? JSON.parse(raw) : null;
   });
@@ -168,6 +171,11 @@ function App() {
     setCurrentUser(user);
   }
 
+  function handleProfileSaved(user: UserProfile) {
+    localStorage.setItem('petshop_user', JSON.stringify(user));
+    setCurrentUser(user);
+  }
+
   function logout() {
     localStorage.removeItem('petshop_user');
     setCurrentUser(null);
@@ -187,6 +195,7 @@ function App() {
           <a href="#pets">展示</a>
           <a href="#market">售卖互换</a>
           <a href="#moments">日常</a>
+          <a href="#profile">主页</a>
           <a href="#mine">我的</a>
         </nav>
         <LoginBox currentUser={currentUser} onLogin={handleLogin} onLogout={logout} />
@@ -279,13 +288,18 @@ function App() {
         <MyPanel currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />
       </section>
 
-      {detail && <DetailModal detail={detail} onClose={() => setDetail(null)} />}
+      <section id="profile" className="section">
+        <SectionTitle icon={<User />} title="个人主页" helper="维护头像、简介、常驻城市，并集中进入收藏和私信" />
+        <ProfilePanel currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} />
+      </section>
+
+      {detail && <DetailModal detail={detail} currentUser={currentUser} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
     </main>
   );
 }
 
-function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: AppUser | null; onLogin: (user: AppUser) => void; onLogout: () => void }) {
+function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: UserProfile | null; onLogin: (user: UserProfile) => void; onLogout: () => void }) {
   const [name, setName] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -335,7 +349,7 @@ function PostList({ posts, onOpen }: { posts: MarketPost[]; onOpen: (post: Marke
     <div className="postList">
       {posts.map((post) => (
         <article className="post clickable" key={post.id} onClick={() => onOpen(post)}>
-          <div className="between"><span className="type">{post.type}</span><span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span></div>
+          <div className="between"><div className="inlineBadges"><span className="type">{post.type}</span><span className="status">{post.status || '在售'}</span></div><span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span></div>
           <h3>{post.title}</h3>
           <p>{post.description}</p>
           <div className="postMeta"><span>{post.category}</span><span>{post.city}</span><span>{post.author}</span></div>
@@ -363,7 +377,7 @@ function MomentList({ moments, onOpen }: { moments: Moment[]; onOpen: (moment: M
 }
 
 function MyPanel(props: {
-  currentUser: AppUser | null;
+  currentUser: UserProfile | null;
   posts: MarketPost[];
   moments: Moment[];
   onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void;
@@ -413,7 +427,7 @@ function MyPanel(props: {
   );
 }
 
-function Composer({ categories, referenceData, currentUser, onSuccess }: { categories: Category[]; referenceData: ReferenceData; currentUser: AppUser | null; onSuccess: () => void }) {
+function Composer({ categories, referenceData, currentUser, onSuccess }: { categories: Category[]; referenceData: ReferenceData; currentUser: UserProfile | null; onSuccess: () => void }) {
   const [mode, setMode] = React.useState<'post' | 'moment'>('post');
   const [imageUrl, setImageUrl] = React.useState('');
   const [imagePreview, setImagePreview] = React.useState('');
@@ -511,6 +525,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
           <>
             <input name="title" placeholder="标题" required disabled={!currentUser} />
             <select name="type" defaultValue={referenceData.postTypes[0] || '互换'} disabled={!currentUser}>{referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}</select>
+            <select name="status" defaultValue="在售" disabled={!currentUser}>{tradeStatuses.map((status) => <option key={status}>{status}</option>)}</select>
           </>
         ) : <input name="petName" placeholder="宠物名字" required disabled={!currentUser} />}
         <select name="category" required disabled={!currentUser}>{categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select>
@@ -531,7 +546,7 @@ function EditModal(props: {
   detail: { type: 'post' | 'moment'; item: MarketPost | Moment };
   categories: Category[];
   referenceData: ReferenceData;
-  currentUser: AppUser | null;
+  currentUser: UserProfile | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -597,6 +612,7 @@ function EditModal(props: {
             <>
               <input name="title" defaultValue={(item as MarketPost).title} placeholder="标题" required />
               <select name="type" defaultValue={(item as MarketPost).type}>{props.referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}</select>
+              <select name="status" defaultValue={(item as MarketPost).status || '在售'}>{tradeStatuses.map((status) => <option key={status}>{status}</option>)}</select>
             </>
           ) : <input name="petName" defaultValue={(item as Moment).petName} placeholder="宠物名字" required />}
           <select name="category" defaultValue={props.detail.type === 'post' ? (item as MarketPost).category : (item as Moment).category} required>
@@ -615,9 +631,83 @@ function EditModal(props: {
   );
 }
 
-function DetailModal({ detail, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; onClose: () => void }) {
+function ProfilePanel(props: {
+  currentUser: UserProfile | null;
+  referenceData: ReferenceData;
+  posts: MarketPost[];
+  onSaved: (user: UserProfile) => void;
+}) {
+  const [avatarUrl, setAvatarUrl] = React.useState(props.currentUser?.avatarUrl || '');
+  const [bio, setBio] = React.useState(props.currentUser?.bio || '');
+  const [city, setCity] = React.useState(props.currentUser?.city || '');
+  const [status, setStatus] = React.useState('');
+  const regions = props.referenceData.regions.length ? props.referenceData.regions : fallbackRegions;
+  const cities = cityOptions(regions);
+  const myPosts = props.currentUser ? props.posts.filter((post) => post.author === props.currentUser!.nickname) : [];
+
+  React.useEffect(() => {
+    setAvatarUrl(props.currentUser?.avatarUrl || '');
+    setBio(props.currentUser?.bio || '');
+    setCity(props.currentUser?.city || '');
+  }, [props.currentUser]);
+
+  if (!props.currentUser) {
+    return <EmptyState title="登录后查看个人主页" helper="个人资料、收藏入口和私信入口会集中显示在这里。" />;
+  }
+
+  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus('');
+    if (phonePattern.test(`${avatarUrl} ${bio} ${city}`)) {
+      return setStatus('个人资料不能填写手机号，请使用站内私信。');
+    }
+    try {
+      const res = await fetch(`${API_BASE}/users/${props.currentUser!.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarUrl, bio, city })
+      });
+      if (!res.ok) throw new Error(await readError(res));
+      props.onSaved(await res.json());
+      setStatus('资料已保存');
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : '保存失败，请稍后重试。');
+    }
+  }
+
+  return (
+    <div className="profilePanel">
+      <div className="profileCard">
+        <div className="avatarBox">{avatarUrl ? <img src={avatarUrl} alt={props.currentUser.nickname} /> : <span>{props.currentUser.nickname.slice(0, 1)}</span>}</div>
+        <div>
+          <h3>{props.currentUser.nickname}</h3>
+          <p>{bio || '还没有填写个人简介。'}</p>
+          <p className="sub"><MapPin size={15} />{city || '未设置常驻城市'}</p>
+        </div>
+      </div>
+      <form className="profileForm" onSubmit={saveProfile}>
+        <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="头像图片地址" />
+        <select value={city} onChange={(event) => setCity(event.target.value)}>
+          <option value="">选择常驻城市</option>
+          {cities.map((item) => <option key={item}>{item}</option>)}
+        </select>
+        <textarea value={bio} onChange={(event) => setBio(event.target.value)} placeholder="简介，例如养宠经验、偏好的宠物类型或交易习惯" />
+        {status && <p className="formNote">{status}</p>}
+        <button className="submit" type="submit">保存个人资料</button>
+      </form>
+      <div className="profileActions">
+        <a href="#market"><Heart size={18} /><strong>我的收藏</strong><span>暂未收藏内容</span></a>
+        <a href="#market"><MessageCircle size={18} /><strong>我的私信</strong><span>从帖子详情联系发布者</span></a>
+        <a href="#mine"><Store size={18} /><strong>我的交易</strong><span>{myPosts.length} 条发布</span></a>
+      </div>
+    </div>
+  );
+}
+
+function DetailModal({ detail, currentUser, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; onClose: () => void }) {
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
+  const post = detail.type === 'post' ? item as MarketPost : null;
   return (
     <div className="modalBackdrop" onClick={onClose}>
       <article className="detailModal" onClick={(event) => event.stopPropagation()}>
@@ -625,12 +715,14 @@ function DetailModal({ detail, onClose }: { detail: { type: 'post' | 'moment' | 
         <h2>{title}</h2>
         {detail.type === 'post' && <DetailRows rows={[
           ['类型', (item as MarketPost).type],
+          ['状态', (item as MarketPost).status || '在售'],
           ['分类', (item as MarketPost).category],
           ['地区', (item as MarketPost).city],
           ['发布人', (item as MarketPost).author],
           ['联系', (item as MarketPost).contact || CONTACT_VALUE],
           ['描述', (item as MarketPost).description]
         ]} />}
+        {post && <button type="button" className="messageAction" onClick={() => currentUser ? alert(`已为你打开与 ${post.author} 的站内私信入口。`) : alert('请先登录后再私信发布者。')}><MessageCircle size={18} />私信发布者</button>}
         {detail.type === 'moment' && <DetailRows rows={[
           ['分类', (item as Moment).category || '日常'],
           ['地区', (item as Moment).city || '未选择地区'],

@@ -50,6 +50,9 @@ public class MarketPostController {
         validate(post);
         post.setCreatedAt(LocalDateTime.now());
         post.setContact(CONTACT_VALUE);
+        if (isBlank(post.getStatus())) {
+            post.setStatus("在售");
+        }
         return repository.save(post);
     }
 
@@ -72,6 +75,9 @@ public class MarketPostController {
         update.setAuthor(existing.getAuthor());
         update.setCreatedAt(existing.getCreatedAt());
         update.setContact(CONTACT_VALUE);
+        if (isBlank(update.getStatus())) {
+            update.setStatus(isBlank(existing.getStatus()) ? "在售" : existing.getStatus());
+        }
         validate(update);
         return repository.save(update);
     }

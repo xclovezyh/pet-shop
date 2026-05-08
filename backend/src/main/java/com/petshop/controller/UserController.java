@@ -4,7 +4,9 @@ import com.petshop.model.AppUser;
 import com.petshop.repository.AppUserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -55,6 +57,24 @@ public class UserController {
     public AppUser exists(@RequestParam String nickname) {
         return repository.findByNickname(nickname)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+    }
+
+    @PutMapping("/{id}")
+    public AppUser updateProfile(@PathVariable Long id, @RequestBody AppUser payload) {
+        AppUser user = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        String content = safe(payload.getAvatarUrl()) + " " + safe(payload.getBio()) + " " + safe(payload.getCity());
+        if (PHONE_PATTERN.matcher(content).find()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "个人资料不能填写手机号，请使用站内私信");
+        }
+        user.setAvatarUrl(safe(payload.getAvatarUrl()));
+        user.setBio(safe(payload.getBio()));
+        user.setCity(safe(payload.getCity()));
+        return repository.save(user);
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
     }
 }
 
