@@ -23,6 +23,7 @@ import './styles.css';
 const API_BASE = '/api';
 const CONTACT_VALUE = '站内私信';
 const phonePattern = /(?:\+?86[-\s]?)?1[3-9]\d{9}/;
+const offsiteContactPattern = /(?:微信|vx|wechat|qq|企鹅|扣扣)[:：\s-]*[a-z0-9_-]{4,}|[1-9]\d{5,11}/i;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const tradeStatuses = ['在售', '已预约', '已成交', '已关闭'];
@@ -68,6 +69,7 @@ type Moment = {
   imageUrl: string;
   createdAt?: string;
 };
+type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile' | 'messages';
 type MessageItem = { from: string; content: string; createdAt: string; read: boolean };
@@ -303,7 +305,7 @@ function App() {
       {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} onMessages={() => setPage('messages')} />}
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={updateThreads} />}
 
-      {detail && <DetailModal detail={detail} currentUser={currentUser} onMessage={startMessage} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal detail={detail} currentUser={currentUser} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
     </main>
   );
@@ -727,7 +729,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     if (!currentUser) return setError('请先登录后再发布内容。');
     const form = new FormData(formElement);
     const body = Object.fromEntries(form.entries());
-    if (phonePattern.test(Object.values(body).join(' '))) return setError('请不要填写手机号，平台只允许站内私信沟通。');
+    if (hasOffsiteContact(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号或 QQ 号，平台只允许站内沟通。');
     setBusy(true);
     body.author = currentUser.nickname;
     body.city = `${province} ${city} ${district}`;
@@ -810,7 +812,7 @@ function EditModal(props: {
     if (!props.currentUser) return setError('请先登录后再编辑内容。');
     const form = new FormData(event.currentTarget);
     const body = Object.fromEntries(form.entries());
-    if (phonePattern.test(Object.values(body).join(' '))) return setError('请不要填写手机号，平台只允许站内私信沟通。');
+    if (hasOffsiteContact(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号或 QQ 号，平台只允许站内沟通。');
     setBusy(true);
     setError('');
     body.author = props.currentUser.nickname;
@@ -895,8 +897,8 @@ function ProfilePanel(props: {
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus('');
-    if (phonePattern.test(`${avatarUrl} ${bio} ${city}`)) {
-      return setStatus('个人资料不能填写手机号，请使用站内私信。');
+    if (hasOffsiteContact(`${avatarUrl} ${bio} ${city}`)) {
+      return setStatus('个人资料不能填写手机号、微信号或 QQ 号，请使用站内沟通。');
     }
     try {
       const res = await fetch(`${API_BASE}/users/${props.currentUser!.id}`, {
@@ -961,8 +963,8 @@ function MessagesPage({ currentUser, threads, onThreadsChange }: { currentUser: 
     event.preventDefault();
     const content = draft.trim();
     if (!activeThread || !content) return;
-    if (phonePattern.test(content)) {
-      alert('私信内容不能填写手机号，请使用站内沟通。');
+    if (hasOffsiteContact(content)) {
+      alert('私信内容不能填写手机号、微信号或 QQ 号，请使用站内沟通。');
       return;
     }
     onThreadsChange(threads.map((thread) => thread.id === activeThread.id
@@ -998,7 +1000,7 @@ function MessagesPage({ currentUser, threads, onThreadsChange }: { currentUser: 
   );
 }
 
-function DetailModal({ detail, currentUser, onMessage, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; onMessage: (post: MarketPost) => void; onClose: () => void }) {
+function DetailModal({ detail, currentUser, onMessage, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; onMessage: (post: MarketPost) => void; onMomentChanged: () => void; onClose: () => void }) {
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
@@ -1025,6 +1027,7 @@ function DetailModal({ detail, currentUser, onMessage, onClose }: { detail: { ty
           ['点赞', String((item as Moment).likes)],
           ['内容', (item as Moment).content]
         ]} />}
+        {detail.type === 'moment' && <MomentInteraction moment={item as Moment} currentUser={currentUser} onChanged={onMomentChanged} />}
         {detail.type === 'pet' && <DetailRows rows={[
           ['分类', (item as Pet).category],
           ['品种', (item as Pet).breed],
@@ -1036,6 +1039,75 @@ function DetailModal({ detail, currentUser, onMessage, onClose }: { detail: { ty
           ['性格', (item as Pet).personality]
         ]} />}
       </article>
+    </div>
+  );
+}
+
+function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment; currentUser: UserProfile | null; onChanged: () => void }) {
+  const [comments, setComments] = React.useState<MomentComment[]>([]);
+  const [content, setContent] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [likes, setLikes] = React.useState(moment.likes || 0);
+
+  const loadComments = React.useCallback(() => {
+    fetch(`${API_BASE}/moments/${moment.id}/comments`)
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then(setComments)
+      .catch(() => setComments([]));
+  }, [moment.id]);
+
+  React.useEffect(loadComments, [loadComments]);
+
+  async function likeMoment() {
+    const res = await fetch(`${API_BASE}/moments/${moment.id}/like`, { method: 'POST' });
+    if (!res.ok) return setError(await readError(res));
+    const next = await res.json() as Moment;
+    setLikes(next.likes || 0);
+    onChanged();
+  }
+
+  async function submitComment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = content.trim();
+    setError('');
+    if (!currentUser) return setError('请先登录后再评论。');
+    if (!text) return setError('请输入评论内容。');
+    if (hasOffsiteContact(text)) return setError('评论不能填写手机号、微信号或 QQ 号。');
+    const res = await fetch(`${API_BASE}/moments/${moment.id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ author: currentUser.nickname, content: text })
+    });
+    if (!res.ok) return setError(await readError(res));
+    setContent('');
+    loadComments();
+  }
+
+  async function shareMoment() {
+    const text = `${moment.author} 分享了 ${moment.petName} 的日常：${moment.content}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setError('日常分享文案已复制');
+    } catch {
+      setError(text);
+    }
+  }
+
+  return (
+    <div className="momentInteraction">
+      <div className="interactionActions">
+        <button type="button" onClick={likeMoment}><Heart size={16} />点赞 {likes}</button>
+        <button type="button" onClick={shareMoment}><MessageCircle size={16} />分享日常</button>
+      </div>
+      <div className="commentPanel">
+        <h3>评论区</h3>
+        {comments.length ? comments.map((comment) => <div className="commentItem" key={comment.id}><strong>{comment.author}</strong><p>{comment.content}</p><span>{formatTime(comment.createdAt)}</span></div>) : <p className="emptyState">还没有评论，来聊聊这条日常吧。</p>}
+      </div>
+      <form className="commentComposer" onSubmit={submitComment}>
+        <input value={content} onChange={(event) => setContent(event.target.value)} placeholder="写评论，禁止手机号、微信号或 QQ 号" />
+        <button type="submit">评论</button>
+      </form>
+      {error && <p className="formNote">{error}</p>}
     </div>
   );
 }
@@ -1064,6 +1136,10 @@ function matchesText(query: string, fields: Array<string | undefined>) {
   const keyword = query.trim().toLowerCase();
   if (!keyword) return true;
   return fields.some((field) => (field || '').toLowerCase().includes(keyword));
+}
+
+function hasOffsiteContact(value: string) {
+  return phonePattern.test(value) || offsiteContactPattern.test(value);
 }
 
 function sortByTime<T extends { createdAt?: string }>(items: T[], mode: 'latest' | 'oldest') {

@@ -1,6 +1,8 @@
 package com.petshop.controller;
 
 import com.petshop.model.Moment;
+import com.petshop.model.MomentComment;
+import com.petshop.repository.MomentCommentRepository;
 import com.petshop.repository.MomentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,11 +26,14 @@ import java.util.stream.Collectors;
 @RequestMapping("/moments")
 public class MomentController {
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?:\\+?86[-\\s]?)?1[3-9]\\d{9}");
+    private static final Pattern OFFSITE_CONTACT_PATTERN = Pattern.compile("(?i)(微信|vx|wechat|qq|企鹅|扣扣)[:：\\s-]*[a-z0-9_-]{4,}|[1-9]\\d{5,11}");
 
     private final MomentRepository repository;
+    private final MomentCommentRepository comments;
 
-    public MomentController(MomentRepository repository) {
+    public MomentController(MomentRepository repository, MomentCommentRepository comments) {
         this.repository = repository;
+        this.comments = comments;
     }
 
     @GetMapping
@@ -50,6 +55,35 @@ public class MomentController {
         moment.setCreatedAt(LocalDateTime.now());
         moment.setLikes(moment.getLikes() == null ? 0 : moment.getLikes());
         return repository.save(moment);
+    }
+
+    @PostMapping("/{id}/like")
+    public Moment like(@PathVariable Long id) {
+        Moment moment = detail(id);
+        moment.setLikes(moment.getLikes() == null ? 1 : moment.getLikes() + 1);
+        return repository.save(moment);
+    }
+
+    @GetMapping("/{id}/comments")
+    public List<MomentComment> comments(@PathVariable Long id) {
+        detail(id);
+        return comments.findByMomentIdOrderByCreatedAtAscIdAsc(id);
+    }
+
+    @PostMapping("/{id}/comments")
+    public MomentComment comment(@PathVariable Long id, @RequestBody MomentComment comment) {
+        detail(id);
+        if (isBlank(comment.getAuthor())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再评论");
+        }
+        if (isBlank(comment.getContent())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请输入评论内容");
+        }
+        validateText(comment.getContent());
+        comment.setId(null);
+        comment.setMomentId(id);
+        comment.setCreatedAt(LocalDateTime.now());
+        return comments.save(comment);
     }
 
     @DeleteMapping("/{id}")
@@ -83,8 +117,12 @@ public class MomentController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择宠物分类");
         }
         String content = safe(moment.getPetName()) + " " + safe(moment.getContent());
-        if (PHONE_PATTERN.matcher(content).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "禁止填写手机号，请使用站内私信");
+        validateText(content);
+    }
+
+    private void validateText(String content) {
+        if (PHONE_PATTERN.matcher(content).find() || OFFSITE_CONTACT_PATTERN.matcher(content).find()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "禁止填写手机号、微信号或 QQ 号，请使用站内沟通");
         }
     }
 
