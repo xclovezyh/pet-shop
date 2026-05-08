@@ -205,7 +205,7 @@ public class DataSeeder {
         pet.setPersonality(personality);
         pet.setPrice(price);
         pet.setOwnerName("平台示例用户");
-        pet.setImageUrl("");
+        pet.setImageUrl(petImage(category, name));
         return pet;
     }
 
@@ -219,7 +219,9 @@ public class DataSeeder {
         post.setAuthor("示例用户");
         post.setContact("站内私信");
         post.setStatus("在售");
-        post.setImageUrl("");
+        String[] images = postImages(category, type);
+        post.setImageUrl(firstImage(images));
+        post.setImageUrls(String.join(",", images));
         post.setCreatedAt(LocalDateTime.now());
         return post;
     }
@@ -232,8 +234,76 @@ public class DataSeeder {
         moment.setCity("上海市 上海市 浦东新区");
         moment.setContent(content);
         moment.setLikes(likes);
-        moment.setImageUrl("");
+        String[] images = momentImages(category);
+        moment.setImageUrl(firstImage(images));
+        moment.setImageUrls(String.join(",", images));
         moment.setCreatedAt(LocalDateTime.now());
         return moment;
+    }
+
+    private String petImage(String category, String name) {
+        if ("狗狗".equals(category)) {
+            return "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=900&q=80";
+        }
+        if ("小宠".equals(category)) {
+            return "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&w=900&q=80";
+        }
+        if ("鸟类".equals(category)) {
+            return "https://images.unsplash.com/photo-1452857297128-d9c29adba80b?auto=format&fit=crop&w=900&q=80";
+        }
+        if ("爬宠".equals(category)) {
+            return "https://images.unsplash.com/photo-1597776941486-054bf5529210?auto=format&fit=crop&w=900&q=80";
+        }
+        return "雪球".equals(name)
+                ? "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&w=900&q=80"
+                : "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=900&q=80";
+    }
+
+    private String[] postImages(String category, String type) {
+        if ("狗狗".equals(category)) {
+            return new String[]{
+                    "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=900&q=80",
+                    "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        if ("用品".equals(category)) {
+            return new String[]{
+                    "https://images.unsplash.com/photo-1545249390-6bdfa286032f?auto=format&fit=crop&w=900&q=80",
+                    "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        if ("寻宠".equals(type)) {
+            return new String[]{
+                    "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=900&q=80",
+                    "https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        return new String[]{
+                "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=900&q=80"
+        };
+    }
+
+    private String[] momentImages(String category) {
+        if ("狗狗".equals(category)) {
+            return new String[]{
+                    "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=900&q=80",
+                    "https://images.unsplash.com/photo-1534361960057-19889db9621e?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        if ("鸟类".equals(category)) {
+            return new String[]{
+                    "https://images.unsplash.com/photo-1452857297128-d9c29adba80b?auto=format&fit=crop&w=900&q=80",
+                    "https://images.unsplash.com/photo-1522926193341-e9ffd686c60f?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        return new String[]{
+                "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=900&q=80"
+        };
+    }
+
+    private String firstImage(String[] images) {
+        return images.length == 0 ? "" : images[0];
     }
 }
