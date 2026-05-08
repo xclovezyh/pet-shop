@@ -169,8 +169,11 @@ h1 {
 }
 
 .quickFilters {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 12px;
-  max-width: 220px;
+  max-width: 720px;
 }
 
 .quickFilters select {
@@ -535,6 +538,40 @@ textarea {
   display: none;
 }
 
+.fileHint {
+  color: #66756d;
+  font-size: 13px;
+  font-weight: 800;
+  margin: -4px 0 0;
+}
+
+.imagePreview {
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+  padding: 10px;
+}
+
+.imagePreview img {
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.imagePreview button {
+  background: #fff0ef;
+  border: 0;
+  border-radius: 6px;
+  color: #ad3d32;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 10px;
+}
+
 .formError {
   background: #fff0ef;
   border: 1px solid #f0cbc7;
@@ -598,6 +635,31 @@ textarea {
   color: #66756d;
   font-weight: 800;
   margin: 0;
+}
+
+.emptyBlock {
+  align-items: center;
+  background: #f7faf8;
+  border: 1px dashed #b9c9c0;
+  border-radius: 8px;
+  color: #53635b;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  grid-column: 1 / -1;
+  justify-content: center;
+  min-height: 150px;
+  padding: 24px;
+  text-align: center;
+}
+
+.emptyBlock strong {
+  color: #22352d;
+  font-size: 18px;
+}
+
+.emptyBlock span {
+  font-weight: 800;
 }
 
 .mineRow {
@@ -742,7 +804,8 @@ textarea {
   .categoryGrid,
   .petGrid,
   .momentGrid,
-  .myColumns {
+  .myColumns,
+  .quickFilters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -761,6 +824,7 @@ textarea {
   .petGrid,
   .momentGrid,
   .regionGrid,
+  .quickFilters,
   .myColumns,
   .mySummary {
     grid-template-columns: 1fr;

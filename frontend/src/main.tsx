@@ -23,6 +23,8 @@ import './styles.css';
 const API_BASE = '/api';
 const CONTACT_VALUE = '站内私信';
 const phonePattern = /(?:\+?86[-\s]?)?1[3-9]\d{9}/;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 type AppUser = { id: number; nickname: string };
 type Category = { id: number; name: string; description: string; tags: string };
@@ -38,6 +40,7 @@ type Pet = {
   imageUrl: string;
   healthInfo: string;
   personality: string;
+  createdAt?: string;
 };
 type MarketPost = {
   id: number;
@@ -49,6 +52,7 @@ type MarketPost = {
   author: string;
   contact: string;
   imageUrl: string;
+  createdAt?: string;
 };
 type Moment = {
   id: number;
@@ -59,6 +63,7 @@ type Moment = {
   content: string;
   likes: number;
   imageUrl: string;
+  createdAt?: string;
 };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type ReferenceData = {
@@ -132,6 +137,9 @@ function App() {
   const referenceData = useApi<ReferenceData>('/reference-data', fallbackReferenceData);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState('全部');
+  const [cityFilter, setCityFilter] = React.useState('全部');
+  const [typeFilter, setTypeFilter] = React.useState('全部');
+  const [sortMode, setSortMode] = React.useState<'latest' | 'oldest'>('latest');
   const [currentUser, setCurrentUser] = React.useState<AppUser | null>(() => {
     const raw = localStorage.getItem('petshop_user');
     return raw ? JSON.parse(raw) : null;
@@ -139,10 +147,21 @@ function App() {
   const [detail, setDetail] = React.useState<{ type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet } | null>(null);
   const [editing, setEditing] = React.useState<{ type: 'post' | 'moment'; item: MarketPost | Moment } | null>(null);
   const availableCategories = categories.data.map((category) => category.name);
+  const availableCities = cityOptions(referenceData.data.regions.length ? referenceData.data.regions : fallbackRegions);
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
-  const filteredPets = pets.data.filter((pet) => matchesCategory(categoryFilter, pet.category) && matchesText(searchQuery, [pet.name, pet.category, pet.breed, pet.city, pet.status, pet.healthInfo, pet.personality]));
-  const filteredPosts = posts.data.filter((post) => matchesCategory(categoryFilter, post.category) && matchesText(searchQuery, [post.title, post.type, post.category, post.city, post.description, post.author]));
-  const filteredMoments = moments.data.filter((moment) => matchesCategory(categoryFilter, moment.category) && matchesText(searchQuery, [moment.author, moment.petName, moment.category, moment.content]));
+  const filteredPets = sortByTime(pets.data
+    .filter((pet) => matchesCategory(categoryFilter, pet.category))
+    .filter((pet) => matchesCity(cityFilter, pet.city))
+    .filter((pet) => matchesText(searchQuery, [pet.name, pet.category, pet.breed, pet.city, pet.status, pet.healthInfo, pet.personality])), sortMode);
+  const filteredPosts = sortByTime(posts.data
+    .filter((post) => matchesCategory(categoryFilter, post.category))
+    .filter((post) => matchesCity(cityFilter, post.city))
+    .filter((post) => matchesType(typeFilter, post.type))
+    .filter((post) => matchesText(searchQuery, [post.title, post.type, post.category, post.city, post.description, post.author])), sortMode);
+  const filteredMoments = sortByTime(moments.data
+    .filter((moment) => matchesCategory(categoryFilter, moment.category))
+    .filter((moment) => matchesCity(cityFilter, moment.city))
+    .filter((moment) => matchesText(searchQuery, [moment.author, moment.petName, moment.category, moment.city, moment.content])), sortMode);
 
   function handleLogin(user: AppUser) {
     localStorage.setItem('petshop_user', JSON.stringify(user));
@@ -181,8 +200,20 @@ function App() {
           <div className="search"><Search size={20} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜索猫咪、柯基、互换、领养、闲置用品" /></div>
           <div className="quickFilters">
             <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-              <option>全部</option>
+              <option value="全部">全部分类</option>
               {availableCategories.map((category) => <option key={category}>{category}</option>)}
+            </select>
+            <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}>
+              <option value="全部">全部城市</option>
+              {availableCities.map((city) => <option key={city}>{city}</option>)}
+            </select>
+            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+              <option value="全部">全部类型</option>
+              {referenceData.data.postTypes.map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as 'latest' | 'oldest')}>
+              <option value="latest">最新发布</option>
+              <option value="oldest">最早发布</option>
             </select>
           </div>
         </div>
@@ -204,6 +235,7 @@ function App() {
               <div className="chips">{category.tags.split(',').map((tag) => <span key={tag}>{tag}</span>)}</div>
             </article>
           ))}
+          {!categories.loading && filteredCategories.length === 0 && <EmptyState title="没有匹配的分类" helper="换个关键词或清空筛选条件再试。" />}
         </div>
       </section>
 
@@ -225,6 +257,7 @@ function App() {
               </div>
             </article>
           ))}
+          {filteredPets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市或关键词筛选。" />}
         </div>
       </section>
 
@@ -294,6 +327,10 @@ function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: AppUser | n
 }
 
 function PostList({ posts, onOpen }: { posts: MarketPost[]; onOpen: (post: MarketPost) => void }) {
+  if (posts.length === 0) {
+    return <EmptyState title="没有匹配的交易帖" helper="可以调整交易类型、城市、分类或关键词。" />;
+  }
+
   return (
     <div className="postList">
       {posts.map((post) => (
@@ -309,6 +346,10 @@ function PostList({ posts, onOpen }: { posts: MarketPost[]; onOpen: (post: Marke
 }
 
 function MomentList({ moments, onOpen }: { moments: Moment[]; onOpen: (moment: Moment) => void }) {
+  if (moments.length === 0) {
+    return <EmptyState title="没有匹配的日常" helper="可以调整城市、分类或关键词筛选。" />;
+  }
+
   return (
     <div className="momentGrid">
       {moments.map((moment) => (
@@ -375,6 +416,7 @@ function MyPanel(props: {
 function Composer({ categories, referenceData, currentUser, onSuccess }: { categories: Category[]; referenceData: ReferenceData; currentUser: AppUser | null; onSuccess: () => void }) {
   const [mode, setMode] = React.useState<'post' | 'moment'>('post');
   const [imageUrl, setImageUrl] = React.useState('');
+  const [imagePreview, setImagePreview] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
   const regions = referenceData.regions.length ? referenceData.regions : fallbackRegions;
@@ -400,8 +442,23 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     }
   }, [regions, province]);
 
+  React.useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
   async function upload(file: File) {
     setError('');
+    const validationError = validateImage(file);
+    if (validationError) {
+      setImageUrl('');
+      setImagePreview('');
+      return setError(validationError);
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview((oldPreview) => {
+      if (oldPreview) URL.revokeObjectURL(oldPreview);
+      return previewUrl;
+    });
     const form = new FormData();
     form.append('file', file);
     try {
@@ -435,6 +492,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
       if (!res.ok) throw new Error(await readError(res));
       formElement.reset();
       setImageUrl('');
+      setImagePreview('');
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : '发布失败，请检查内容是否符合规则。');
@@ -460,6 +518,8 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
         {mode === 'post' ? <textarea name="description" placeholder="描述需求、宠物状态或交易条件。请勿填写手机号。" required disabled={!currentUser} /> : <textarea name="content" placeholder="分享今天的宠物日常。请勿填写手机号。" required disabled={!currentUser} />}
         <div className="contactOnly"><MessageCircle size={16} /><span>联系方式固定为站内私信</span></div>
         <label className="fileInput"><Camera size={18} /><span>{imageUrl ? '图片已上传' : '上传图片'}</span><input type="file" accept="image/*" disabled={!currentUser} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></label>
+        <p className="fileHint">支持 JPG、PNG、WebP、GIF，单张不超过 5MB。</p>
+        {imagePreview && <div className="imagePreview"><img src={imagePreview} alt="上传预览" /><button type="button" onClick={() => { setImageUrl(''); setImagePreview(''); }}>移除图片</button></div>}
         {error && <p className="formError">{error}</p>}
         <button className="submit" disabled={busy || !currentUser}>{busy ? '发布中...' : '发布'}</button>
       </form>
@@ -598,14 +658,48 @@ function DetailRows({ rows }: { rows: Array<[string, string]> }) {
   return <dl className="detailRows">{rows.map(([key, value]) => <React.Fragment key={key}><dt>{key}</dt><dd>{value}</dd></React.Fragment>)}</dl>;
 }
 
+function EmptyState({ title, helper }: { title: string; helper: string }) {
+  return <div className="emptyBlock"><PawPrint size={26} /><strong>{title}</strong><span>{helper}</span></div>;
+}
+
 function matchesCategory(filter: string, category?: string) {
   return filter === '全部' || category === filter;
+}
+
+function matchesCity(filter: string, city?: string) {
+  return filter === '全部' || (city || '').includes(filter);
+}
+
+function matchesType(filter: string, type?: string) {
+  return filter === '全部' || type === filter;
 }
 
 function matchesText(query: string, fields: Array<string | undefined>) {
   const keyword = query.trim().toLowerCase();
   if (!keyword) return true;
   return fields.some((field) => (field || '').toLowerCase().includes(keyword));
+}
+
+function sortByTime<T extends { createdAt?: string }>(items: T[], mode: 'latest' | 'oldest') {
+  return [...items].sort((left, right) => {
+    const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;
+    const rightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
+    return mode === 'latest' ? rightTime - leftTime : leftTime - rightTime;
+  });
+}
+
+function cityOptions(regions: Region[]) {
+  return Array.from(new Set(regions.flatMap((province) => province.cities.map((city) => city.name))));
+}
+
+function validateImage(file: File) {
+  if (!allowedImageTypes.includes(file.type)) {
+    return '图片格式不支持，请上传 JPG、PNG、WebP 或 GIF。';
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    return '图片不能超过 5MB，请压缩后再上传。';
+  }
+  return '';
 }
 
 function parseRegion(value: string | undefined, regions: Region[]) {
