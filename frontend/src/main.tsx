@@ -69,7 +69,9 @@ type Moment = {
   createdAt?: string;
 };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
-type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile';
+type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile' | 'messages';
+type MessageItem = { from: string; content: string; createdAt: string; read: boolean };
+type MessageThread = { id: string; peer: string; postTitle: string; messages: MessageItem[] };
 type ReferenceData = {
   regions: Region[];
   postTypes: string[];
@@ -151,6 +153,7 @@ function App() {
   });
   const [detail, setDetail] = React.useState<{ type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet } | null>(null);
   const [editing, setEditing] = React.useState<{ type: 'post' | 'moment'; item: MarketPost | Moment } | null>(null);
+  const [threads, setThreads] = React.useState<MessageThread[]>(() => readStoredThreads());
   const availableCategories = categories.data.map((category) => category.name);
   const availableCities = cityOptions(referenceData.data.regions.length ? referenceData.data.regions : fallbackRegions);
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
@@ -183,10 +186,63 @@ function App() {
     setCurrentUser(null);
   }
 
+  React.useEffect(() => {
+    if (!currentUser) return;
+    fetch(`${API_BASE}/users/exists?nickname=${encodeURIComponent(currentUser.nickname)}`)
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((user) => {
+        localStorage.setItem('petshop_user', JSON.stringify(user));
+        setCurrentUser(user);
+      })
+      .catch(() => logout());
+  }, []);
+
+  React.useEffect(() => {
+    localStorage.setItem('petshop_threads', JSON.stringify(threads));
+  }, [threads]);
+
   const reloadFeeds = () => {
     posts.reload();
     moments.reload();
   };
+
+  function startMessage(post: MarketPost) {
+    if (!currentUser) {
+      alert('请先登录后再私信发布者。');
+      return;
+    }
+    const threadId = `${post.author}::${post.id}`;
+    setThreads((items) => {
+      if (items.some((thread) => thread.id === threadId)) return items;
+      return [{
+        id: threadId,
+        peer: post.author,
+        postTitle: post.title,
+        messages: [
+          {
+            from: currentUser.nickname,
+            content: `你好，我想了解「${post.title}」。`,
+            createdAt: new Date().toISOString(),
+            read: true
+          },
+          {
+            from: post.author,
+            content: '你好，已收到你的站内私信，可以在这里继续沟通。',
+            createdAt: new Date().toISOString(),
+            read: false
+          }
+        ]
+      }, ...items];
+    });
+    setDetail(null);
+    setPage('messages');
+  }
+
+  function updateThreads(nextThreads: MessageThread[]) {
+    setThreads(nextThreads);
+  }
+
+  const unreadCount = threads.reduce((count, thread) => count + thread.messages.filter((message) => !message.read && message.from !== currentUser?.nickname).length, 0);
 
   return (
     <main>
@@ -200,6 +256,7 @@ function App() {
           <button type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
           <button type="button" className={page === 'mine' ? 'active' : ''} onClick={() => setPage('mine')}>我的</button>
           <button type="button" className={page === 'profile' ? 'active' : ''} onClick={() => setPage('profile')}>主页</button>
+          <button type="button" className={page === 'messages' ? 'active' : ''} onClick={() => setPage('messages')}>私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
         </nav>
         <LoginBox currentUser={currentUser} onLogin={handleLogin} onLogout={logout} />
       </header>
@@ -243,9 +300,10 @@ function App() {
       )}
       {page === 'moments' && <MomentsPage moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
       {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />}
-      {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} />}
+      {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} onMessages={() => setPage('messages')} />}
+      {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={updateThreads} />}
 
-      {detail && <DetailModal detail={detail} currentUser={currentUser} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal detail={detail} currentUser={currentUser} onMessage={startMessage} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
     </main>
   );
@@ -439,7 +497,7 @@ function MinePage(props: {
   );
 }
 
-function ProfilePage(props: { currentUser: UserProfile | null; referenceData: ReferenceData; posts: MarketPost[]; onSaved: (user: UserProfile) => void }) {
+function ProfilePage(props: { currentUser: UserProfile | null; referenceData: ReferenceData; posts: MarketPost[]; onSaved: (user: UserProfile) => void; onMessages: () => void }) {
   return (
     <section className="page section">
       <SectionTitle icon={<User />} title="个人主页" helper="维护头像、简介、常驻城市，并集中进入收藏和私信" />
@@ -561,6 +619,17 @@ function MyPanel(props: {
     props.onChanged();
   }
 
+  async function closePost(post: MarketPost) {
+    const author = encodeURIComponent(props.currentUser!.nickname);
+    const res = await fetch(`${API_BASE}/posts/${post.id}?author=${author}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...post, status: '已关闭' })
+    });
+    if (!res.ok) alert(await readError(res));
+    props.onChanged();
+  }
+
   return (
     <div className="myPanel">
       <div className="mySummary">
@@ -574,6 +643,7 @@ function MyPanel(props: {
             <div className="mineRow" key={post.id}>
               <button type="button" onClick={() => props.onOpen({ type: 'post', item: post })}>{post.title}</button>
               <button type="button" className="editIcon" title="编辑" onClick={() => props.onEdit({ type: 'post', item: post })}><Pencil size={16} /></button>
+              <button type="button" className="closeTradeIcon" title="关闭交易" disabled={(post.status || '在售') === '已关闭'} onClick={() => closePost(post)}>关</button>
               <button type="button" className="dangerIcon" onClick={() => remove('posts', post.id)}><Trash2 size={16} /></button>
             </div>
           )) : <p className="emptyState">还没有发布交易帖。</p>}
@@ -802,6 +872,7 @@ function ProfilePanel(props: {
   referenceData: ReferenceData;
   posts: MarketPost[];
   onSaved: (user: UserProfile) => void;
+  onMessages: () => void;
 }) {
   const [avatarUrl, setAvatarUrl] = React.useState(props.currentUser?.avatarUrl || '');
   const [bio, setBio] = React.useState(props.currentUser?.bio || '');
@@ -863,14 +934,71 @@ function ProfilePanel(props: {
       </form>
       <div className="profileActions">
         <a href="#market"><Heart size={18} /><strong>我的收藏</strong><span>暂未收藏内容</span></a>
-        <a href="#market"><MessageCircle size={18} /><strong>我的私信</strong><span>从帖子详情联系发布者</span></a>
+        <button type="button" onClick={props.onMessages}><MessageCircle size={18} /><strong>我的私信</strong><span>从帖子详情联系发布者</span></button>
         <a href="#mine"><Store size={18} /><strong>我的交易</strong><span>{myPosts.length} 条发布</span></a>
       </div>
     </div>
   );
 }
 
-function DetailModal({ detail, currentUser, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; onClose: () => void }) {
+function MessagesPage({ currentUser, threads, onThreadsChange }: { currentUser: UserProfile | null; threads: MessageThread[]; onThreadsChange: (threads: MessageThread[]) => void }) {
+  const [activeId, setActiveId] = React.useState(threads[0]?.id || '');
+  const [draft, setDraft] = React.useState('');
+  const activeThread = threads.find((thread) => thread.id === activeId) || threads[0];
+
+  React.useEffect(() => {
+    if (!activeThread) return;
+    onThreadsChange(threads.map((thread) => thread.id === activeThread.id
+      ? { ...thread, messages: thread.messages.map((message) => ({ ...message, read: true })) }
+      : thread));
+  }, [activeId]);
+
+  if (!currentUser) {
+    return <section className="page section"><EmptyState title="登录后查看站内私信" helper="私信只在站内沟通，不展示手机号等线下联系方式。" /></section>;
+  }
+
+  function sendMessage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = draft.trim();
+    if (!activeThread || !content) return;
+    if (phonePattern.test(content)) {
+      alert('私信内容不能填写手机号，请使用站内沟通。');
+      return;
+    }
+    onThreadsChange(threads.map((thread) => thread.id === activeThread.id
+      ? { ...thread, messages: [...thread.messages, { from: currentUser!.nickname, content, createdAt: new Date().toISOString(), read: true }] }
+      : thread));
+    setDraft('');
+  }
+
+  return (
+    <section className="page section">
+      <SectionTitle icon={<MessageCircle />} title="站内私信" helper="围绕交易帖发起会话，禁止手机号线下联系" />
+      {threads.length === 0 ? <EmptyState title="还没有私信会话" helper="在帖子详情里点击“私信发布者”即可创建会话。" /> : (
+        <div className="messageLayout">
+          <div className="threadList">
+            {threads.map((thread) => {
+              const unread = thread.messages.filter((message) => !message.read && message.from !== currentUser.nickname).length;
+              return <button type="button" className={activeThread?.id === thread.id ? 'active' : ''} key={thread.id} onClick={() => setActiveId(thread.id)}><strong>{thread.peer}</strong><span>{thread.postTitle}</span>{unread > 0 && <em>{unread}</em>}</button>;
+            })}
+          </div>
+          {activeThread && <div className="conversation">
+            <div className="conversationHeader"><strong>{activeThread.peer}</strong><span>{activeThread.postTitle}</span></div>
+            <div className="messageStream">
+              {activeThread.messages.map((message, index) => <div className={message.from === currentUser.nickname ? 'message mine' : 'message'} key={`${message.createdAt}-${index}`}><strong>{message.from}</strong><p>{message.content}</p><span>{formatTime(message.createdAt)}</span></div>)}
+            </div>
+            <form className="messageComposer" onSubmit={sendMessage}>
+              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="输入站内私信内容，禁止手机号" />
+              <button type="submit">发送</button>
+            </form>
+          </div>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DetailModal({ detail, currentUser, onMessage, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; onMessage: (post: MarketPost) => void; onClose: () => void }) {
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
@@ -888,7 +1016,7 @@ function DetailModal({ detail, currentUser, onClose }: { detail: { type: 'post' 
           ['联系', (item as MarketPost).contact || CONTACT_VALUE],
           ['描述', (item as MarketPost).description]
         ]} />}
-        {post && <button type="button" className="messageAction" onClick={() => currentUser ? alert(`已为你打开与 ${post.author} 的站内私信入口。`) : alert('请先登录后再私信发布者。')}><MessageCircle size={18} />私信发布者</button>}
+        {post && <button type="button" className="messageAction" onClick={() => onMessage(post)}><MessageCircle size={18} />私信发布者</button>}
         {detail.type === 'moment' && <DetailRows rows={[
           ['分类', (item as Moment).category || '日常'],
           ['地区', (item as Moment).city || '未选择地区'],
@@ -948,6 +1076,22 @@ function sortByTime<T extends { createdAt?: string }>(items: T[], mode: 'latest'
 
 function cityOptions(regions: Region[]) {
   return Array.from(new Set(regions.flatMap((province) => province.cities.map((city) => city.name))));
+}
+
+function readStoredThreads() {
+  const raw = localStorage.getItem('petshop_threads');
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as MessageThread[];
+  } catch {
+    return [];
+  }
+}
+
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function validateImage(file: File) {

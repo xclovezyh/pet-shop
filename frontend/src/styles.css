@@ -785,7 +785,7 @@ textarea {
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   margin-bottom: 10px;
   padding: 8px;
 }
@@ -801,6 +801,7 @@ textarea {
 }
 
 .mineRow .editIcon,
+.mineRow .closeTradeIcon,
 .mineRow .dangerIcon {
   align-items: center;
   border-radius: 6px;
@@ -815,6 +816,12 @@ textarea {
 .mineRow .editIcon {
   background: #eef4f1;
   color: #19513d;
+}
+
+.mineRow .closeTradeIcon {
+  background: #f6f1e8;
+  color: #79552f;
+  font-size: 13px;
 }
 
 .mineRow .dangerIcon {
@@ -884,15 +891,19 @@ textarea {
   gap: 10px;
 }
 
-.profileActions a {
+.profileActions a,
+.profileActions button {
   background: #f7faf8;
   border: 1px solid #dfe7e2;
   border-radius: 8px;
   color: #22352d;
+  cursor: pointer;
   display: grid;
   gap: 4px;
   grid-template-columns: auto 1fr;
+  font: inherit;
   padding: 14px;
+  text-align: left;
 }
 
 .profileActions svg {
@@ -923,6 +934,124 @@ textarea {
   gap: 8px;
   margin-top: 20px;
   padding: 12px 14px;
+}
+
+.messageLayout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.threadList,
+.conversation {
+  background: #fff;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(32, 39, 36, 0.06);
+  padding: 14px;
+}
+
+.threadList {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.threadList button {
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  color: #22352d;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  position: relative;
+  text-align: left;
+}
+
+.threadList button.active {
+  border-color: #6da88b;
+  box-shadow: 0 0 0 3px rgba(109, 168, 139, 0.14);
+}
+
+.threadList span,
+.conversationHeader span,
+.message span {
+  color: #66756d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.threadList em {
+  align-items: center;
+  background: #b65b32;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+  height: 22px;
+  justify-content: center;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 22px;
+}
+
+.conversation {
+  display: grid;
+  gap: 14px;
+  grid-template-rows: auto minmax(260px, 1fr) auto;
+  min-height: 520px;
+}
+
+.conversationHeader {
+  border-bottom: 1px solid #dfe7e2;
+  display: grid;
+  gap: 4px;
+  padding-bottom: 12px;
+}
+
+.messageStream {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+}
+
+.message {
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  max-width: 72%;
+  padding: 10px 12px;
+}
+
+.message.mine {
+  background: #e6f2ec;
+  justify-self: end;
+}
+
+.message p {
+  margin: 4px 0;
+}
+
+.messageComposer {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.messageComposer button {
+  background: #19513d;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0 18px;
 }
 
 .modalBackdrop {
@@ -1002,7 +1131,8 @@ textarea {
   .hero,
   .split,
   .profilePanel,
-  .previewSplit {
+  .previewSplit,
+  .messageLayout {
     grid-template-columns: 1fr;
   }
 
