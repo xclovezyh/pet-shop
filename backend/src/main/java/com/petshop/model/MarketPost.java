@@ -8,6 +8,7 @@ import javax.persistence.Id;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -26,6 +27,7 @@ public class MarketPost {
     private String contact;
     private String author;
     private String status;
+    private BigDecimal price;
     private LocalDateTime createdAt;
 
     @Column(length = 1000)

@@ -88,6 +88,9 @@ public class MarketPostController {
         if (isBlank(post.getCategory())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择宠物分类");
         }
+        if (post.getPrice() != null && post.getPrice().signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "价格不能小于 0");
+        }
         String content = safe(post.getTitle()) + " " + safe(post.getDescription()) + " " + safe(post.getContact());
         ContentSafety.validate(content);
     }

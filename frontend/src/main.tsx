@@ -57,6 +57,7 @@ type MarketPost = {
   author: string;
   contact: string;
   imageUrl: string;
+  price?: number;
   status?: string;
   createdAt?: string;
 };
@@ -118,7 +119,7 @@ const demoPets: Pet[] = [
 ];
 
 const demoPosts: MarketPost[] = [
-  { id: 1, title: '想给柯基找同城互换寄养伙伴', type: '互换', category: '狗狗', city: '浙江省 杭州市 西湖区', description: '工作日偶尔出差，希望找同城稳定互助家庭。', author: '林小满', contact: CONTACT_VALUE, imageUrl: '' }
+  { id: 1, title: '想给柯基找同城互换寄养伙伴', type: '互换', category: '狗狗', city: '浙江省 杭州市 西湖区', description: '工作日偶尔出差，希望找同城稳定互助家庭。', author: '林小满', contact: CONTACT_VALUE, imageUrl: '', price: 0 }
 ];
 
 const demoMoments: Moment[] = [
@@ -150,6 +151,8 @@ function App() {
   const [categoryFilter, setCategoryFilter] = React.useState('全部');
   const [cityFilter, setCityFilter] = React.useState('全部');
   const [typeFilter, setTypeFilter] = React.useState('全部');
+  const [minPrice, setMinPrice] = React.useState('');
+  const [maxPrice, setMaxPrice] = React.useState('');
   const [sortMode, setSortMode] = React.useState<'latest' | 'oldest'>('latest');
   const [page, setPage] = React.useState<PageKey>('home');
   const [currentUser, setCurrentUser] = React.useState<UserProfile | null>(() => {
@@ -166,11 +169,13 @@ function App() {
   const filteredPets = sortByTime(pets.data
     .filter((pet) => matchesCategory(categoryFilter, pet.category))
     .filter((pet) => matchesCity(cityFilter, pet.city))
+    .filter((pet) => matchesPrice(minPrice, maxPrice, pet.price))
     .filter((pet) => matchesText(searchQuery, [pet.name, pet.category, pet.breed, pet.city, pet.status, pet.healthInfo, pet.personality])), sortMode);
   const filteredPosts = sortByTime(posts.data
     .filter((post) => matchesCategory(categoryFilter, post.category))
     .filter((post) => matchesCity(cityFilter, post.city))
     .filter((post) => matchesType(typeFilter, post.type))
+    .filter((post) => matchesPrice(minPrice, maxPrice, post.price))
     .filter((post) => matchesText(searchQuery, [post.title, post.type, post.category, post.city, post.description, post.author])), sortMode);
   const filteredMoments = sortByTime(moments.data
     .filter((moment) => matchesCategory(categoryFilter, moment.category))
@@ -327,14 +332,17 @@ function App() {
         />
       )}
       {page === 'categories' && <CategoriesPage loading={categories.loading} categories={filteredCategories} />}
-      {page === 'pets' && <PetsPage pets={filteredPets} onOpen={(pet) => setDetail({ type: 'pet', item: pet })} />}
+      {page === 'pets' && <PetsPage loading={pets.loading} pets={filteredPets} onOpen={(pet) => setDetail({ type: 'pet', item: pet })} />}
       {page === 'market' && (
         <MarketPage
           searchQuery={searchQuery}
           categoryFilter={categoryFilter}
           cityFilter={cityFilter}
           typeFilter={typeFilter}
+          minPrice={minPrice}
+          maxPrice={maxPrice}
           sortMode={sortMode}
+          loading={posts.loading}
           availableCategories={availableCategories}
           availableCities={availableCities}
           postTypes={referenceData.data.postTypes}
@@ -346,6 +354,8 @@ function App() {
           onCategory={setCategoryFilter}
           onCity={setCityFilter}
           onType={setTypeFilter}
+          onMinPrice={setMinPrice}
+          onMaxPrice={setMaxPrice}
           onSort={setSortMode}
           onOpenPost={(post) => setDetail({ type: 'post', item: post })}
           favoriteIds={favoriteIds}
@@ -353,7 +363,7 @@ function App() {
           onPublished={reloadFeeds}
         />
       )}
-      {page === 'moments' && <MomentsPage moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
+      {page === 'moments' && <MomentsPage loading={moments.loading} moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
       {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />}
       {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} favoriteCount={favoritePosts.length} onSaved={handleProfileSaved} onFavorites={() => setPage('favorites')} onMessages={() => setPage('messages')} />}
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
@@ -471,8 +481,8 @@ function CategoriesPage({ loading, categories }: { loading: boolean; categories:
   return (
     <section className="page section">
       <SectionTitle icon={<Tags />} title="宠物分类库" helper="发布内容时必须从平台分类库中选择" />
-      <div className="categoryGrid">
-        {loading && <p>正在加载分类...</p>}
+        <div className="categoryGrid">
+        {loading && <LoadingState label="正在加载分类库" />}
         {categories.map((category) => (
           <article className="category" key={category.id}>
             <h3>{category.name}</h3>
@@ -486,13 +496,14 @@ function CategoriesPage({ loading, categories }: { loading: boolean; categories:
   );
 }
 
-function PetsPage({ pets, onOpen }: { pets: Pet[]; onOpen: (pet: Pet) => void }) {
+function PetsPage({ loading, pets, onOpen }: { loading: boolean; pets: Pet[]; onOpen: (pet: Pet) => void }) {
   return (
     <section className="page section">
       <SectionTitle icon={<Store />} title="宠物展示与售卖" helper="查看宠物基础信息，后续可扩展订单与审核" />
       <div className="petGrid">
+        {loading && <LoadingState label="正在加载宠物资料" />}
         {pets.map((pet) => <PetCard key={pet.id} pet={pet} onOpen={onOpen} />)}
-        {pets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市或关键词筛选。" />}
+        {!loading && pets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市、价格或关键词筛选。" />}
       </div>
     </section>
   );
@@ -503,7 +514,10 @@ function MarketPage(props: {
   categoryFilter: string;
   cityFilter: string;
   typeFilter: string;
+  minPrice: string;
+  maxPrice: string;
   sortMode: 'latest' | 'oldest';
+  loading: boolean;
   availableCategories: string[];
   availableCities: string[];
   postTypes: string[];
@@ -515,6 +529,8 @@ function MarketPage(props: {
   onCategory: (value: string) => void;
   onCity: (value: string) => void;
   onType: (value: string) => void;
+  onMinPrice: (value: string) => void;
+  onMaxPrice: (value: string) => void;
   onSort: (value: 'latest' | 'oldest') => void;
   onOpenPost: (post: MarketPost) => void;
   favoriteIds: Set<number>;
@@ -526,6 +542,7 @@ function MarketPage(props: {
       <div>
         <SectionTitle icon={<Plus />} title="售卖 / 互换 / 领养帖子" helper="筛选交易内容，点击帖子查看详情并发起站内私信" />
         <FilterBar {...props} />
+        {props.loading && <LoadingState label="正在加载交易帖子" />}
         <PostList posts={props.posts} currentUser={props.currentUser} favoriteIds={props.favoriteIds} onOpen={props.onOpenPost} onToggleFavorite={props.onToggleFavorite} />
       </div>
       <Composer categories={props.categories} referenceData={props.referenceData} currentUser={props.currentUser} onSuccess={props.onPublished} />
@@ -533,11 +550,12 @@ function MarketPage(props: {
   );
 }
 
-function MomentsPage({ moments, onOpen }: { moments: Moment[]; onOpen: (moment: Moment) => void }) {
+function MomentsPage({ loading, moments, onOpen }: { loading: boolean; moments: Moment[]; onOpen: (moment: Moment) => void }) {
   return (
     <section className="page section">
       <SectionTitle icon={<Camera />} title="用户日常分享" helper="记录宠物近况、养护经验和可爱的日常瞬间" />
-      <MomentList moments={moments} onOpen={onOpen} />
+      {loading && <LoadingState label="正在加载用户日常" />}
+      {!loading && <MomentList moments={moments} onOpen={onOpen} />}
     </section>
   );
 }
@@ -581,6 +599,8 @@ function FilterBar(props: {
   categoryFilter: string;
   cityFilter: string;
   typeFilter: string;
+  minPrice: string;
+  maxPrice: string;
   sortMode: 'latest' | 'oldest';
   availableCategories: string[];
   availableCities: string[];
@@ -589,6 +609,8 @@ function FilterBar(props: {
   onCategory: (value: string) => void;
   onCity: (value: string) => void;
   onType: (value: string) => void;
+  onMinPrice: (value: string) => void;
+  onMaxPrice: (value: string) => void;
   onSort: (value: 'latest' | 'oldest') => void;
 }) {
   return (
@@ -607,6 +629,8 @@ function FilterBar(props: {
           <option value="全部">全部类型</option>
           {props.postTypes.map((type) => <option key={type}>{type}</option>)}
         </select>
+        <input type="number" min="0" value={props.minPrice} onChange={(event) => props.onMinPrice(event.target.value)} placeholder="最低价" />
+        <input type="number" min="0" value={props.maxPrice} onChange={(event) => props.onMaxPrice(event.target.value)} placeholder="最高价" />
         <select value={props.sortMode} onChange={(event) => props.onSort(event.target.value as 'latest' | 'oldest')}>
           <option value="latest">最新发布</option>
           <option value="oldest">最早发布</option>
@@ -626,7 +650,7 @@ function PetCard({ pet, onOpen }: { pet: Pet; onOpen: (pet: Pet) => void }) {
         <p className="sub"><MapPin size={15} />{pet.city}</p>
         <p>{pet.personality}</p>
         <div className="between cardFooter">
-          <span className="price">{pet.price > 0 ? `￥${pet.price}` : '面议'}</span>
+          <span className="price">{formatPrice(pet.price)}</span>
           <span className="health"><ShieldCheck size={15} />{pet.healthInfo}</span>
         </div>
       </div>
@@ -651,7 +675,7 @@ function PostList({ posts, currentUser, favoriteIds, onOpen, onToggleFavorite }:
           <p>{post.description}</p>
           <div className="between cardFooter">
             <div className="postMeta"><span>{post.category}</span><span>{post.city}</span><span>{post.author}</span></div>
-            <span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span>
+            <div className="postSideMeta"><span className="price">{formatPrice(post.price)}</span><span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span></div>
           </div>
         </article>
       ))}
@@ -808,6 +832,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     body.author = currentUser.nickname;
     body.city = `${province} ${city} ${district}`;
     body.contact = CONTACT_VALUE;
+    if (mode === 'post') body.price = body.price || '0';
     if (imageUrl) body.imageUrl = imageUrl;
     try {
       const res = await fetch(`${API_BASE}/${mode === 'post' ? 'posts' : 'moments'}`, {
@@ -838,6 +863,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
             <input name="title" placeholder="标题" required disabled={!currentUser} />
             <select name="type" defaultValue={referenceData.postTypes[0] || '互换'} disabled={!currentUser}>{referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}</select>
             <select name="status" defaultValue="在售" disabled={!currentUser}>{tradeStatuses.map((status) => <option key={status}>{status}</option>)}</select>
+            <input name="price" type="number" min="0" step="1" placeholder="价格，互换或面议可填 0" disabled={!currentUser} />
           </>
         ) : <input name="petName" placeholder="宠物名字" required disabled={!currentUser} />}
         <select name="category" required disabled={!currentUser}>{categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select>
@@ -893,6 +919,7 @@ function EditModal(props: {
     body.city = `${province} ${city} ${district}`;
     if (props.detail.type === 'post') {
       body.contact = CONTACT_VALUE;
+      body.price = body.price || '0';
       body.imageUrl = (item as MarketPost).imageUrl || '';
     } else {
       body.imageUrl = (item as Moment).imageUrl || '';
@@ -925,6 +952,7 @@ function EditModal(props: {
               <input name="title" defaultValue={(item as MarketPost).title} placeholder="标题" required />
               <select name="type" defaultValue={(item as MarketPost).type}>{props.referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}</select>
               <select name="status" defaultValue={(item as MarketPost).status || '在售'}>{tradeStatuses.map((status) => <option key={status}>{status}</option>)}</select>
+              <input name="price" type="number" min="0" step="1" defaultValue={(item as MarketPost).price || 0} placeholder="价格，互换或面议可填 0" />
             </>
           ) : <input name="petName" defaultValue={(item as Moment).petName} placeholder="宠物名字" required />}
           <select name="category" defaultValue={props.detail.type === 'post' ? (item as MarketPost).category : (item as Moment).category} required>
@@ -1112,6 +1140,7 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, o
         {detail.type === 'post' && <DetailRows rows={[
           ['类型', (item as MarketPost).type],
           ['状态', (item as MarketPost).status || '在售'],
+          ['价格', formatPrice((item as MarketPost).price)],
           ['分类', (item as MarketPost).category],
           ['地区', (item as MarketPost).city],
           ['发布人', (item as MarketPost).author],
@@ -1141,7 +1170,7 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, o
           ['年龄', (item as Pet).age],
           ['地区', (item as Pet).city],
           ['状态', (item as Pet).status],
-          ['价格', (item as Pet).price > 0 ? `￥${(item as Pet).price}` : '面议'],
+          ['价格', formatPrice((item as Pet).price)],
           ['健康', (item as Pet).healthInfo],
           ['性格', (item as Pet).personality]
         ]} />}
@@ -1227,6 +1256,10 @@ function EmptyState({ title, helper }: { title: string; helper: string }) {
   return <div className="emptyBlock"><PawPrint size={26} /><strong>{title}</strong><span>{helper}</span></div>;
 }
 
+function LoadingState({ label }: { label: string }) {
+  return <div className="loadingBlock"><span /> <strong>{label}</strong></div>;
+}
+
 function matchesCategory(filter: string, category?: string) {
   return filter === '全部' || category === filter;
 }
@@ -1237,6 +1270,15 @@ function matchesCity(filter: string, city?: string) {
 
 function matchesType(filter: string, type?: string) {
   return filter === '全部' || type === filter;
+}
+
+function matchesPrice(minPrice: string, maxPrice: string, value?: number) {
+  const price = Number(value || 0);
+  const min = minPrice === '' ? null : Number(minPrice);
+  const max = maxPrice === '' ? null : Number(maxPrice);
+  if (min !== null && !Number.isNaN(min) && price < min) return false;
+  if (max !== null && !Number.isNaN(max) && price > max) return false;
+  return true;
 }
 
 function matchesText(query: string, fields: Array<string | undefined>) {
@@ -1274,6 +1316,10 @@ function formatTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatPrice(value?: number) {
+  return value && value > 0 ? `￥${value}` : '面议';
 }
 
 function validateImage(file: File) {

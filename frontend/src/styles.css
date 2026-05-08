@@ -196,17 +196,19 @@ h1 {
 .quickFilters {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-top: 12px;
-  max-width: 720px;
+  max-width: 980px;
 }
 
-.quickFilters select {
+.quickFilters select,
+.quickFilters input {
   background: rgba(255, 255, 255, 0.96);
   border-color: rgba(255, 255, 255, 0.75);
 }
 
-.filterPanel .quickFilters select {
+.filterPanel .quickFilters select,
+.filterPanel .quickFilters input {
   border-color: #d6e0da;
 }
 
@@ -515,6 +517,14 @@ h1 {
 .post .cardFooter {
   align-items: center;
   margin-top: 14px;
+}
+
+.postSideMeta {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .price {
@@ -835,6 +845,35 @@ textarea {
 
 .emptyBlock span {
   font-weight: 800;
+}
+
+.loadingBlock {
+  align-items: center;
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  color: #37594a;
+  display: flex;
+  font-weight: 900;
+  gap: 10px;
+  grid-column: 1 / -1;
+  min-height: 76px;
+  padding: 18px;
+}
+
+.loadingBlock span {
+  animation: spin 0.8s linear infinite;
+  border: 3px solid #d7e5dc;
+  border-top-color: #19513d;
+  border-radius: 999px;
+  height: 18px;
+  width: 18px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mineRow {
