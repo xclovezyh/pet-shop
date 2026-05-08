@@ -72,8 +72,8 @@ type Moment = {
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile' | 'messages';
-type MessageItem = { from: string; content: string; createdAt: string; read: boolean };
-type MessageThread = { id: string; peer: string; postTitle: string; messages: MessageItem[] };
+type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
+type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
 type ReferenceData = {
   regions: Region[];
   postTypes: string[];
@@ -155,7 +155,7 @@ function App() {
   });
   const [detail, setDetail] = React.useState<{ type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet } | null>(null);
   const [editing, setEditing] = React.useState<{ type: 'post' | 'moment'; item: MarketPost | Moment } | null>(null);
-  const [threads, setThreads] = React.useState<MessageThread[]>(() => readStoredThreads());
+  const [threads, setThreads] = React.useState<MessageThread[]>([]);
   const availableCategories = categories.data.map((category) => category.name);
   const availableCities = cityOptions(referenceData.data.regions.length ? referenceData.data.regions : fallbackRegions);
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
@@ -199,52 +199,44 @@ function App() {
       .catch(() => logout());
   }, []);
 
-  React.useEffect(() => {
-    localStorage.setItem('petshop_threads', JSON.stringify(threads));
-  }, [threads]);
+  const loadThreads = React.useCallback(() => {
+    if (!currentUser) {
+      setThreads([]);
+      return;
+    }
+    fetch(`${API_BASE}/messages?user=${encodeURIComponent(currentUser.nickname)}`)
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then(setThreads)
+      .catch(() => setThreads([]));
+  }, [currentUser]);
+
+  React.useEffect(loadThreads, [loadThreads]);
 
   const reloadFeeds = () => {
     posts.reload();
     moments.reload();
   };
 
-  function startMessage(post: MarketPost) {
+  async function startMessage(post: MarketPost) {
     if (!currentUser) {
       alert('请先登录后再私信发布者。');
       return;
     }
-    const threadId = `${post.author}::${post.id}`;
-    setThreads((items) => {
-      if (items.some((thread) => thread.id === threadId)) return items;
-      return [{
-        id: threadId,
-        peer: post.author,
-        postTitle: post.title,
-        messages: [
-          {
-            from: currentUser.nickname,
-            content: `你好，我想了解「${post.title}」。`,
-            createdAt: new Date().toISOString(),
-            read: true
-          },
-          {
-            from: post.author,
-            content: '你好，已收到你的站内私信，可以在这里继续沟通。',
-            createdAt: new Date().toISOString(),
-            read: false
-          }
-        ]
-      }, ...items];
+    const res = await fetch(`${API_BASE}/messages/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: post.id, sender: currentUser.nickname, content: `你好，我想了解「${post.title}」。` })
     });
+    if (!res.ok) {
+      alert(await readError(res));
+      return;
+    }
     setDetail(null);
     setPage('messages');
+    loadThreads();
   }
 
-  function updateThreads(nextThreads: MessageThread[]) {
-    setThreads(nextThreads);
-  }
-
-  const unreadCount = threads.reduce((count, thread) => count + thread.messages.filter((message) => !message.read && message.from !== currentUser?.nickname).length, 0);
+  const unreadCount = threads.reduce((count, thread) => count + (thread.unreadCount || 0), 0);
 
   return (
     <main>
@@ -303,7 +295,7 @@ function App() {
       {page === 'moments' && <MomentsPage moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
       {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />}
       {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} onMessages={() => setPage('messages')} />}
-      {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={updateThreads} />}
+      {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
 
       {detail && <DetailModal detail={detail} currentUser={currentUser} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
@@ -943,34 +935,57 @@ function ProfilePanel(props: {
   );
 }
 
-function MessagesPage({ currentUser, threads, onThreadsChange }: { currentUser: UserProfile | null; threads: MessageThread[]; onThreadsChange: (threads: MessageThread[]) => void }) {
+function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { currentUser: UserProfile | null; threads: MessageThread[]; onThreadsChange: (threads: MessageThread[]) => void; onReload: () => void }) {
   const [activeId, setActiveId] = React.useState(threads[0]?.id || '');
   const [draft, setDraft] = React.useState('');
+  const [error, setError] = React.useState('');
   const activeThread = threads.find((thread) => thread.id === activeId) || threads[0];
 
   React.useEffect(() => {
-    if (!activeThread) return;
-    onThreadsChange(threads.map((thread) => thread.id === activeThread.id
-      ? { ...thread, messages: thread.messages.map((message) => ({ ...message, read: true })) }
-      : thread));
-  }, [activeId]);
+    if (!threads.length) {
+      setActiveId('');
+      return;
+    }
+    if (!activeThread) {
+      setActiveId(threads[0].id);
+    }
+  }, [threads, activeThread]);
+
+  React.useEffect(() => {
+    if (!activeThread || !currentUser) return;
+    fetch(`${API_BASE}/messages/${activeThread.id}/read?user=${encodeURIComponent(currentUser.nickname)}`, { method: 'PUT' })
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((updated) => {
+        onThreadsChange(threads.map((thread) => thread.id === updated.id ? updated : thread));
+      })
+      .catch(() => undefined);
+  }, [activeId, currentUser]);
 
   if (!currentUser) {
     return <section className="page section"><EmptyState title="登录后查看站内私信" helper="私信只在站内沟通，不展示手机号等线下联系方式。" /></section>;
   }
 
-  function sendMessage(event: React.FormEvent<HTMLFormElement>) {
+  async function sendMessage(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const content = draft.trim();
+    setError('');
+    if (!currentUser) return;
     if (!activeThread || !content) return;
     if (hasOffsiteContact(content)) {
-      alert('私信内容不能填写手机号、微信号或 QQ 号，请使用站内沟通。');
+      setError('私信内容不能填写手机号、微信号或 QQ 号，请使用站内沟通。');
       return;
     }
-    onThreadsChange(threads.map((thread) => thread.id === activeThread.id
-      ? { ...thread, messages: [...thread.messages, { from: currentUser!.nickname, content, createdAt: new Date().toISOString(), read: true }] }
-      : thread));
+    const res = await fetch(`${API_BASE}/messages/${activeThread.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender: currentUser.nickname, content })
+    });
+    if (!res.ok) {
+      setError(await readError(res));
+      return;
+    }
     setDraft('');
+    onReload();
   }
 
   return (
@@ -980,19 +995,20 @@ function MessagesPage({ currentUser, threads, onThreadsChange }: { currentUser: 
         <div className="messageLayout">
           <div className="threadList">
             {threads.map((thread) => {
-              const unread = thread.messages.filter((message) => !message.read && message.from !== currentUser.nickname).length;
+              const unread = thread.unreadCount || 0;
               return <button type="button" className={activeThread?.id === thread.id ? 'active' : ''} key={thread.id} onClick={() => setActiveId(thread.id)}><strong>{thread.peer}</strong><span>{thread.postTitle}</span>{unread > 0 && <em>{unread}</em>}</button>;
             })}
           </div>
           {activeThread && <div className="conversation">
             <div className="conversationHeader"><strong>{activeThread.peer}</strong><span>{activeThread.postTitle}</span></div>
             <div className="messageStream">
-              {activeThread.messages.map((message, index) => <div className={message.from === currentUser.nickname ? 'message mine' : 'message'} key={`${message.createdAt}-${index}`}><strong>{message.from}</strong><p>{message.content}</p><span>{formatTime(message.createdAt)}</span></div>)}
+              {activeThread.messages.map((message) => <div className={message.sender === currentUser.nickname ? 'message mine' : 'message'} key={message.id}><strong>{message.sender}</strong><p>{message.content}</p><span>{formatTime(message.createdAt)}</span></div>)}
             </div>
             <form className="messageComposer" onSubmit={sendMessage}>
               <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="输入站内私信内容，禁止手机号" />
               <button type="submit">发送</button>
             </form>
+            {error && <p className="formNote">{error}</p>}
           </div>}
         </div>
       )}
@@ -1152,16 +1168,6 @@ function sortByTime<T extends { createdAt?: string }>(items: T[], mode: 'latest'
 
 function cityOptions(regions: Region[]) {
   return Array.from(new Set(regions.flatMap((province) => province.cities.map((city) => city.name))));
-}
-
-function readStoredThreads() {
-  const raw = localStorage.getItem('petshop_threads');
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as MessageThread[];
-  } catch {
-    return [];
-  }
 }
 
 function formatTime(value: string) {
