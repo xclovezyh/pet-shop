@@ -46,9 +46,9 @@ main {
   background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid #dce4de;
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-columns: auto 1fr auto;
-  padding: 14px 40px;
+  padding: 16px 40px;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -65,36 +65,47 @@ main {
 
 nav {
   display: flex;
-  gap: 22px;
+  gap: 34px;
   justify-content: center;
 }
 
 nav button {
   background: transparent;
   border: 0;
-  border-radius: 6px;
   color: #53635b;
   cursor: pointer;
   font-size: 15px;
-  font-weight: 800;
-  padding: 8px 10px;
+  font-weight: 900;
+  padding: 8px 2px;
+  position: relative;
 }
 
 nav button.active,
 nav button:hover {
-  background: #e6f2ec;
   color: #19513d;
 }
 
+nav button.active::after,
+nav button:hover::after {
+  background: #19513d;
+  border-radius: 999px;
+  bottom: 0;
+  content: "";
+  height: 3px;
+  left: 10%;
+  position: absolute;
+  right: 10%;
+}
+
 .loginBox,
-.userBadge {
+.userMenuTrigger {
   align-items: center;
   background: #eef5f1;
   border: 1px solid #d7e5dc;
-  border-radius: 8px;
+  border-radius: 999px;
   display: flex;
   gap: 8px;
-  padding: 6px;
+  padding: 6px 8px;
 }
 
 .loginBox input {
@@ -105,8 +116,7 @@ nav button:hover {
   width: 120px;
 }
 
-.loginBox button,
-.userBadge button {
+.loginBox button {
   background: #19513d;
   border: 0;
   border-radius: 6px;
@@ -118,15 +128,73 @@ nav button:hover {
   padding: 0 12px;
 }
 
-.userBadge button.secondary {
-  background: #f7faf8;
-  border: 1px solid #d7e5dc;
+.userMenu {
+  position: relative;
+}
+
+.userMenuTrigger {
+  color: #22352d;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.avatarMini {
+  align-items: center;
+  background: #19513d;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.userMenuTrigger em {
+  align-items: center;
+  background: #b65b32;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  font-size: 12px;
+  font-style: normal;
+  height: 20px;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 6px;
+}
+
+.userMenuPanel {
+  background: #fff;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(32, 39, 36, 0.14);
+  display: grid;
+  min-width: 148px;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 20;
+}
+
+.userMenuPanel button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #22352d;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.userMenuPanel button:hover {
+  background: #eef5f1;
   color: #19513d;
 }
 
-.userBadge span {
-  color: #22352d;
-  font-weight: 900;
+.userMenuPanel .logoutItem {
+  color: #ad3d32;
 }
 
 .hero {

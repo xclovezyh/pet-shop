@@ -374,16 +374,22 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
   const [name, setName] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
 
   if (currentUser) {
     return (
-      <div className="userBadge">
-        <User size={16} />
-        <span>{currentUser.nickname}</span>
-        <button type="button" className="secondary" onClick={onMine}>我的</button>
-        <button type="button" className="secondary" onClick={onProfile}>主页</button>
-        <button type="button" className="secondary" onClick={onMessages}>私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
-        <button type="button" onClick={onLogout}>退出</button>
+      <div className="userMenu">
+        <button type="button" className="userMenuTrigger" onClick={() => setOpen(!open)}>
+          <span className="avatarMini">{currentUser.nickname.slice(0, 1)}</span>
+          <span>{currentUser.nickname}</span>
+          {unreadCount > 0 && <em>{unreadCount}</em>}
+        </button>
+        {open && <div className="userMenuPanel">
+          <button type="button" onClick={() => { setOpen(false); onMine(); }}>我的发布</button>
+          <button type="button" onClick={() => { setOpen(false); onProfile(); }}>个人主页</button>
+          <button type="button" onClick={() => { setOpen(false); onMessages(); }}>站内私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
+          <button type="button" className="logoutItem" onClick={() => { setOpen(false); onLogout(); }}>退出登录</button>
+        </div>}
       </div>
     );
   }
