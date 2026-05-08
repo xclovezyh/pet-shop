@@ -504,6 +504,25 @@ h1 {
   padding: 18px;
 }
 
+.favoriteButton {
+  align-items: center;
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 6px;
+  color: #37594a;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 900;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.favoriteButton.active {
+  background: #fff3ef;
+  border-color: #efcfc5;
+  color: #b65b32;
+}
+
 .postMeta {
   color: #66756d;
   display: flex;
@@ -517,6 +536,10 @@ h1 {
   background: #f1f5f3;
   border-radius: 6px;
   padding: 5px 8px;
+}
+
+.cardFooter .postMeta {
+  margin-top: 0;
 }
 
 .inlineBadges {
@@ -922,6 +945,13 @@ textarea {
   font-weight: 800;
 }
 
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
 .messageAction {
   align-items: center;
   background: #19513d;
@@ -932,8 +962,11 @@ textarea {
   display: inline-flex;
   font-weight: 900;
   gap: 8px;
-  margin-top: 20px;
   padding: 12px 14px;
+}
+
+.messageAction.favoriteActive {
+  background: #b65b32;
 }
 
 .momentInteraction {

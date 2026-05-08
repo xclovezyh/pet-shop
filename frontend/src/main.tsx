@@ -70,8 +70,9 @@ type Moment = {
   createdAt?: string;
 };
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
+type PostFavorite = { id: number; userNickname: string; postId: number; createdAt: string; post?: MarketPost };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
-type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile' | 'messages';
+type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
 type ReferenceData = {
@@ -156,6 +157,7 @@ function App() {
   const [detail, setDetail] = React.useState<{ type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet } | null>(null);
   const [editing, setEditing] = React.useState<{ type: 'post' | 'moment'; item: MarketPost | Moment } | null>(null);
   const [threads, setThreads] = React.useState<MessageThread[]>([]);
+  const [favoritePosts, setFavoritePosts] = React.useState<MarketPost[]>([]);
   const availableCategories = categories.data.map((category) => category.name);
   const availableCities = cityOptions(referenceData.data.regions.length ? referenceData.data.regions : fallbackRegions);
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
@@ -212,6 +214,19 @@ function App() {
 
   React.useEffect(loadThreads, [loadThreads]);
 
+  const loadFavorites = React.useCallback(() => {
+    if (!currentUser) {
+      setFavoritePosts([]);
+      return;
+    }
+    fetch(`${API_BASE}/favorites?user=${encodeURIComponent(currentUser.nickname)}`)
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((items: PostFavorite[]) => setFavoritePosts(items.map((item) => item.post).filter(Boolean) as MarketPost[]))
+      .catch(() => setFavoritePosts([]));
+  }, [currentUser]);
+
+  React.useEffect(loadFavorites, [loadFavorites]);
+
   const reloadFeeds = () => {
     posts.reload();
     moments.reload();
@@ -236,6 +251,25 @@ function App() {
     loadThreads();
   }
 
+  async function toggleFavorite(post: MarketPost) {
+    if (!currentUser) {
+      alert('请先登录后再收藏帖子。');
+      return;
+    }
+    const exists = favoritePosts.some((item) => item.id === post.id);
+    const res = await fetch(`${API_BASE}/favorites${exists ? `/${post.id}?user=${encodeURIComponent(currentUser.nickname)}` : ''}`, {
+      method: exists ? 'DELETE' : 'POST',
+      headers: exists ? undefined : { 'Content-Type': 'application/json' },
+      body: exists ? undefined : JSON.stringify({ userNickname: currentUser.nickname, postId: post.id })
+    });
+    if (!res.ok) {
+      alert(await readError(res));
+      return;
+    }
+    loadFavorites();
+  }
+
+  const favoriteIds = new Set(favoritePosts.map((post) => post.id));
   const unreadCount = threads.reduce((count, thread) => count + (thread.unreadCount || 0), 0);
 
   return (
@@ -261,10 +295,13 @@ function App() {
           pets={pets.data}
           posts={posts.data}
           moments={moments.data}
+          currentUser={currentUser}
+          favoriteIds={favoriteIds}
           onNavigate={setPage}
           onOpenPet={(pet) => setDetail({ type: 'pet', item: pet })}
           onOpenPost={(post) => setDetail({ type: 'post', item: post })}
           onOpenMoment={(moment) => setDetail({ type: 'moment', item: moment })}
+          onToggleFavorite={toggleFavorite}
         />
       )}
       {page === 'categories' && <CategoriesPage loading={categories.loading} categories={filteredCategories} />}
@@ -289,15 +326,18 @@ function App() {
           onType={setTypeFilter}
           onSort={setSortMode}
           onOpenPost={(post) => setDetail({ type: 'post', item: post })}
+          favoriteIds={favoriteIds}
+          onToggleFavorite={toggleFavorite}
           onPublished={reloadFeeds}
         />
       )}
       {page === 'moments' && <MomentsPage moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
       {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />}
-      {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} onMessages={() => setPage('messages')} />}
+      {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} favoriteCount={favoritePosts.length} onSaved={handleProfileSaved} onFavorites={() => setPage('favorites')} onMessages={() => setPage('messages')} />}
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
+      {page === 'favorites' && <FavoritesPage currentUser={currentUser} posts={favoritePosts} favoriteIds={favoriteIds} onOpen={(post) => setDetail({ type: 'post', item: post })} onToggleFavorite={toggleFavorite} />}
 
-      {detail && <DetailModal detail={detail} currentUser={currentUser} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} onFavorite={toggleFavorite} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
     </main>
   );
@@ -349,10 +389,13 @@ function HomePage(props: {
   pets: Pet[];
   posts: MarketPost[];
   moments: Moment[];
+  currentUser: UserProfile | null;
+  favoriteIds: Set<number>;
   onNavigate: (page: PageKey) => void;
   onOpenPet: (pet: Pet) => void;
   onOpenPost: (post: MarketPost) => void;
   onOpenMoment: (moment: Moment) => void;
+  onToggleFavorite: (post: MarketPost) => void;
 }) {
   return (
     <>
@@ -384,7 +427,7 @@ function HomePage(props: {
       <section className="section previewSplit">
         <div>
           <SectionTitle icon={<Plus />} title="最新交易" helper="市场页可筛选城市、分类、类型和发布时间" />
-          <PostList posts={props.posts.slice(0, 3)} onOpen={props.onOpenPost} />
+          <PostList posts={props.posts.slice(0, 3)} currentUser={props.currentUser} favoriteIds={props.favoriteIds} onOpen={props.onOpenPost} onToggleFavorite={props.onToggleFavorite} />
         </div>
         <div>
           <SectionTitle icon={<Camera />} title="最新日常" helper="社区页集中查看用户分享" />
@@ -452,6 +495,8 @@ function MarketPage(props: {
   onType: (value: string) => void;
   onSort: (value: 'latest' | 'oldest') => void;
   onOpenPost: (post: MarketPost) => void;
+  favoriteIds: Set<number>;
+  onToggleFavorite: (post: MarketPost) => void;
   onPublished: () => void;
 }) {
   return (
@@ -459,7 +504,7 @@ function MarketPage(props: {
       <div>
         <SectionTitle icon={<Plus />} title="售卖 / 互换 / 领养帖子" helper="筛选交易内容，点击帖子查看详情并发起站内私信" />
         <FilterBar {...props} />
-        <PostList posts={props.posts} onOpen={props.onOpenPost} />
+        <PostList posts={props.posts} currentUser={props.currentUser} favoriteIds={props.favoriteIds} onOpen={props.onOpenPost} onToggleFavorite={props.onToggleFavorite} />
       </div>
       <Composer categories={props.categories} referenceData={props.referenceData} currentUser={props.currentUser} onSuccess={props.onPublished} />
     </section>
@@ -491,7 +536,16 @@ function MinePage(props: {
   );
 }
 
-function ProfilePage(props: { currentUser: UserProfile | null; referenceData: ReferenceData; posts: MarketPost[]; onSaved: (user: UserProfile) => void; onMessages: () => void }) {
+function FavoritesPage({ currentUser, posts, favoriteIds, onOpen, onToggleFavorite }: { currentUser: UserProfile | null; posts: MarketPost[]; favoriteIds: Set<number>; onOpen: (post: MarketPost) => void; onToggleFavorite: (post: MarketPost) => void }) {
+  return (
+    <section className="page section">
+      <SectionTitle icon={<Heart />} title="我的收藏" helper="收藏会保存到数据库，方便后续继续查看和私信沟通" />
+      {!currentUser ? <EmptyState title="登录后查看收藏" helper="收藏帖子需要登录，数据会保存在站内账号下。" /> : <PostList posts={posts} currentUser={currentUser} favoriteIds={favoriteIds} onOpen={onOpen} onToggleFavorite={onToggleFavorite} />}
+    </section>
+  );
+}
+
+function ProfilePage(props: { currentUser: UserProfile | null; referenceData: ReferenceData; posts: MarketPost[]; favoriteCount: number; onSaved: (user: UserProfile) => void; onFavorites: () => void; onMessages: () => void }) {
   return (
     <section className="page section">
       <SectionTitle icon={<User />} title="个人主页" helper="维护头像、简介、常驻城市，并集中进入收藏和私信" />
@@ -558,7 +612,7 @@ function PetCard({ pet, onOpen }: { pet: Pet; onOpen: (pet: Pet) => void }) {
   );
 }
 
-function PostList({ posts, onOpen }: { posts: MarketPost[]; onOpen: (post: MarketPost) => void }) {
+function PostList({ posts, currentUser, favoriteIds, onOpen, onToggleFavorite }: { posts: MarketPost[]; currentUser: UserProfile | null; favoriteIds: Set<number>; onOpen: (post: MarketPost) => void; onToggleFavorite: (post: MarketPost) => void }) {
   if (posts.length === 0) {
     return <EmptyState title="没有匹配的交易帖" helper="可以调整交易类型、城市、分类或关键词。" />;
   }
@@ -567,10 +621,16 @@ function PostList({ posts, onOpen }: { posts: MarketPost[]; onOpen: (post: Marke
     <div className="postList">
       {posts.map((post) => (
         <article className="post clickable" key={post.id} onClick={() => onOpen(post)}>
-          <div className="between"><div className="inlineBadges"><span className="type">{post.type}</span><span className="status">{post.status || '在售'}</span></div><span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span></div>
+          <div className="between">
+            <div className="inlineBadges"><span className="type">{post.type}</span><span className="status">{post.status || '在售'}</span></div>
+            <button type="button" className={favoriteIds.has(post.id) ? 'favoriteButton active' : 'favoriteButton'} title={currentUser ? '收藏帖子' : '登录后收藏'} onClick={(event) => { event.stopPropagation(); onToggleFavorite(post); }}><Heart size={15} />{favoriteIds.has(post.id) ? '已收藏' : '收藏'}</button>
+          </div>
           <h3>{post.title}</h3>
           <p>{post.description}</p>
-          <div className="postMeta"><span>{post.category}</span><span>{post.city}</span><span>{post.author}</span></div>
+          <div className="between cardFooter">
+            <div className="postMeta"><span>{post.category}</span><span>{post.city}</span><span>{post.author}</span></div>
+            <span className="postContact"><MessageCircle size={15} />{post.contact || CONTACT_VALUE}</span>
+          </div>
         </article>
       ))}
     </div>
@@ -865,7 +925,9 @@ function ProfilePanel(props: {
   currentUser: UserProfile | null;
   referenceData: ReferenceData;
   posts: MarketPost[];
+  favoriteCount: number;
   onSaved: (user: UserProfile) => void;
+  onFavorites: () => void;
   onMessages: () => void;
 }) {
   const [avatarUrl, setAvatarUrl] = React.useState(props.currentUser?.avatarUrl || '');
@@ -927,7 +989,7 @@ function ProfilePanel(props: {
         <button className="submit" type="submit">保存个人资料</button>
       </form>
       <div className="profileActions">
-        <a href="#market"><Heart size={18} /><strong>我的收藏</strong><span>暂未收藏内容</span></a>
+        <button type="button" onClick={props.onFavorites}><Heart size={18} /><strong>我的收藏</strong><span>{props.favoriteCount} 条收藏</span></button>
         <button type="button" onClick={props.onMessages}><MessageCircle size={18} /><strong>我的私信</strong><span>从帖子详情联系发布者</span></button>
         <a href="#mine"><Store size={18} /><strong>我的交易</strong><span>{myPosts.length} 条发布</span></a>
       </div>
@@ -1016,7 +1078,7 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
   );
 }
 
-function DetailModal({ detail, currentUser, onMessage, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; onMessage: (post: MarketPost) => void; onMomentChanged: () => void; onClose: () => void }) {
+function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onMessage, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; favoriteIds: Set<number>; onFavorite: (post: MarketPost) => void; onMessage: (post: MarketPost) => void; onMomentChanged: () => void; onClose: () => void }) {
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
@@ -1034,7 +1096,10 @@ function DetailModal({ detail, currentUser, onMessage, onMomentChanged, onClose 
           ['联系', (item as MarketPost).contact || CONTACT_VALUE],
           ['描述', (item as MarketPost).description]
         ]} />}
-        {post && <button type="button" className="messageAction" onClick={() => onMessage(post)}><MessageCircle size={18} />私信发布者</button>}
+        {post && <div className="detailActions">
+          <button type="button" className={favoriteIds.has(post.id) ? 'messageAction favoriteActive' : 'messageAction'} onClick={() => onFavorite(post)}><Heart size={18} />{favoriteIds.has(post.id) ? '已收藏' : '收藏帖子'}</button>
+          <button type="button" className="messageAction" onClick={() => onMessage(post)}><MessageCircle size={18} />私信发布者</button>
+        </div>}
         {detail.type === 'moment' && <DetailRows rows={[
           ['分类', (item as Moment).category || '日常'],
           ['地区', (item as Moment).city || '未选择地区'],
