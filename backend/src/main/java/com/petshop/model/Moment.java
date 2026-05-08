@@ -23,6 +23,8 @@ public class Moment {
     private String category;
     private String city;
     private String imageUrl;
+    @Column(length = 2000)
+    private String imageUrls;
     private Integer likes;
     private LocalDateTime createdAt;
 

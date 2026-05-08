@@ -24,6 +24,8 @@ public class MarketPost {
     private String category;
     private String city;
     private String imageUrl;
+    @Column(length = 2000)
+    private String imageUrls;
     private String contact;
     private String author;
     private String status;

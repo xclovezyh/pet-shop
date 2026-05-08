@@ -57,6 +57,7 @@ type MarketPost = {
   author: string;
   contact: string;
   imageUrl: string;
+  imageUrls?: string;
   price?: number;
   status?: string;
   createdAt?: string;
@@ -70,6 +71,7 @@ type Moment = {
   content: string;
   likes: number;
   imageUrl: string;
+  imageUrls?: string;
   createdAt?: string;
 };
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
@@ -757,7 +759,7 @@ function MomentList({ moments, onOpen }: { moments: Moment[]; onOpen: (moment: M
     <div className="momentGrid">
       {moments.map((moment) => (
         <article className="moment clickable" key={moment.id} onClick={() => onOpen(moment)}>
-          {imageBox(moment.imageUrl, moment.petName || moment.author)}
+          {imageBox(primaryImage(moment), moment.petName || moment.author)}
           <div><span className="type">{moment.category || '日常'}</span><h3>{moment.author} 和 {moment.petName}</h3><p>{moment.content}</p><div className="momentMeta"><span>{moment.city || '未选择地区'}</span><span className="likes"><Heart size={15} />{moment.likes}</span></div></div>
         </article>
       ))}
@@ -830,8 +832,9 @@ function MyPanel(props: {
 
 function Composer({ categories, referenceData, currentUser, onSuccess }: { categories: Category[]; referenceData: ReferenceData; currentUser: UserProfile | null; onSuccess: () => void }) {
   const [mode, setMode] = React.useState<'post' | 'moment'>('post');
-  const [imageUrl, setImageUrl] = React.useState('');
-  const [imagePreview, setImagePreview] = React.useState('');
+  const [imageUrls, setImageUrls] = React.useState<string[]>([]);
+  const [imagePreviews, setImagePreviews] = React.useState<string[]>([]);
+  const imagePreviewRef = React.useRef<string[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
   const regions = referenceData.regions.length ? referenceData.regions : fallbackRegions;
@@ -857,32 +860,46 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     }
   }, [regions, province]);
 
-  React.useEffect(() => () => {
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-  }, [imagePreview]);
+  React.useEffect(() => {
+    imagePreviewRef.current = imagePreviews;
+  }, [imagePreviews]);
 
-  async function upload(file: File) {
+  React.useEffect(() => () => {
+    imagePreviewRef.current.forEach((preview) => URL.revokeObjectURL(preview));
+  }, []);
+
+  async function upload(files: FileList) {
     setError('');
-    const validationError = validateImage(file);
-    if (validationError) {
-      setImageUrl('');
-      setImagePreview('');
-      return setError(validationError);
+    const nextFiles = Array.from(files).slice(0, Math.max(0, 6 - imageUrls.length));
+    if (nextFiles.length === 0) return setError('最多上传 6 张图片。');
+    for (const file of nextFiles) {
+      const validationError = validateImage(file);
+      if (validationError) return setError(validationError);
     }
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreview((oldPreview) => {
-      if (oldPreview) URL.revokeObjectURL(oldPreview);
-      return previewUrl;
-    });
-    const form = new FormData();
-    form.append('file', file);
     try {
-      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
-      if (!res.ok) throw new Error(await readError(res));
-      setImageUrl((await res.json()).url);
+      for (const file of nextFiles) {
+        const previewUrl = URL.createObjectURL(file);
+        setImagePreviews((items) => [...items, previewUrl]);
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+        if (!res.ok) throw new Error(await readError(res));
+        const data = await res.json();
+        setImageUrls((items) => [...items, data.url]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '图片上传失败，请稍后重试。');
     }
+  }
+
+  function removeImage(index: number) {
+    setImagePreviews((items) => {
+      const next = [...items];
+      const [removed] = next.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed);
+      return next;
+    });
+    setImageUrls((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -898,7 +915,10 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     body.city = `${province} ${city} ${district}`;
     body.contact = CONTACT_VALUE;
     if (mode === 'post') body.price = body.price || '0';
-    if (imageUrl) body.imageUrl = imageUrl;
+    if (imageUrls.length) {
+      body.imageUrl = imageUrls[0];
+      body.imageUrls = imageUrls.join(',');
+    }
     try {
       const res = await fetch(`${API_BASE}/${mode === 'post' ? 'posts' : 'moments'}`, {
         method: 'POST',
@@ -907,8 +927,9 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
       });
       if (!res.ok) throw new Error(await readError(res));
       formElement.reset();
-      setImageUrl('');
-      setImagePreview('');
+      imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+      setImageUrls([]);
+      setImagePreviews([]);
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : '发布失败，请检查内容是否符合规则。');
@@ -935,9 +956,9 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
         <RegionPicker province={province} city={city} district={district} selectedProvince={selectedProvince} selectedCity={selectedCity} regions={regions} disabled={!currentUser} onProvince={setProvince} onCity={setCity} onDistrict={setDistrict} />
         {mode === 'post' ? <textarea name="description" placeholder="描述需求、宠物状态或交易条件。请勿填写手机号。" required disabled={!currentUser} /> : <textarea name="content" placeholder="分享今天的宠物日常。请勿填写手机号。" required disabled={!currentUser} />}
         <div className="contactOnly"><MessageCircle size={16} /><span>联系方式固定为站内私信</span></div>
-        <label className="fileInput"><Camera size={18} /><span>{imageUrl ? '图片已上传' : '上传图片'}</span><input type="file" accept="image/*" disabled={!currentUser} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></label>
-        <p className="fileHint">支持 JPG、PNG、WebP、GIF，单张不超过 5MB。</p>
-        {imagePreview && <div className="imagePreview"><img src={imagePreview} alt="上传预览" /><button type="button" onClick={() => { setImageUrl(''); setImagePreview(''); }}>移除图片</button></div>}
+        <label className="fileInput"><Camera size={18} /><span>{imageUrls.length ? `已上传 ${imageUrls.length} 张` : '上传图片'}</span><input type="file" accept="image/*" multiple disabled={!currentUser} onChange={(e) => e.target.files && upload(e.target.files)} /></label>
+        <p className="fileHint">支持 JPG、PNG、WebP、GIF，最多 6 张，单张不超过 5MB。</p>
+        {imagePreviews.length > 0 && <div className="imagePreviewGrid">{imagePreviews.map((preview, index) => <div className="imagePreview" key={preview}><img src={preview} alt={`上传预览 ${index + 1}`} /><button type="button" onClick={() => removeImage(index)}>移除</button></div>)}</div>}
         {error && <p className="formError">{error}</p>}
         <button className="submit" disabled={busy || !currentUser}>{busy ? '发布中...' : '发布'}</button>
       </form>
@@ -986,8 +1007,10 @@ function EditModal(props: {
       body.contact = CONTACT_VALUE;
       body.price = body.price || '0';
       body.imageUrl = (item as MarketPost).imageUrl || '';
+      body.imageUrls = (item as MarketPost).imageUrls || (item as MarketPost).imageUrl || '';
     } else {
       body.imageUrl = (item as Moment).imageUrl || '';
+      body.imageUrls = (item as Moment).imageUrls || (item as Moment).imageUrl || '';
     }
     try {
       const kind = props.detail.type === 'post' ? 'posts' : 'moments';
@@ -1197,11 +1220,13 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, o
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
+  const images = detail.type === 'pet' ? imageList({ imageUrl: (item as Pet).imageUrl }) : imageList(item as MarketPost | Moment);
   return (
     <div className="modalBackdrop" onClick={onClose}>
       <article className="detailModal" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="closeButton" onClick={onClose}><X size={18} /></button>
         <h2>{title}</h2>
+        {images.length > 0 && <div className="detailGallery">{images.map((url, index) => <img src={url} alt={`${title} 图片 ${index + 1}`} key={url} />)}</div>}
         {detail.type === 'post' && <DetailRows rows={[
           ['类型', (item as MarketPost).type],
           ['状态', (item as MarketPost).status || '在售'],
@@ -1385,6 +1410,18 @@ function formatTime(value: string) {
 
 function formatPrice(value?: number) {
   return value && value > 0 ? `￥${value}` : '面议';
+}
+
+function imageList(item: { imageUrl?: string; imageUrls?: string }) {
+  const urls = (item.imageUrls || item.imageUrl || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+  return Array.from(new Set(urls));
+}
+
+function primaryImage(item: { imageUrl?: string; imageUrls?: string }) {
+  return imageList(item)[0] || '';
 }
 
 function validateImage(file: File) {

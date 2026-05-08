@@ -821,6 +821,12 @@ textarea {
   padding: 10px;
 }
 
+.imagePreviewGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .imagePreview img {
   aspect-ratio: 4 / 3;
   border-radius: 6px;
@@ -836,6 +842,20 @@ textarea {
   cursor: pointer;
   font-weight: 900;
   padding: 10px;
+}
+
+.detailGallery {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.detailGallery img {
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+  width: 100%;
 }
 
 .formError {
@@ -1491,6 +1511,11 @@ textarea {
   }
 
   .detailRows {
+    grid-template-columns: 1fr;
+  }
+
+  .imagePreviewGrid,
+  .detailGallery {
     grid-template-columns: 1fr;
   }
 
