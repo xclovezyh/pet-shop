@@ -75,7 +75,7 @@ type Moment = {
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type PostFavorite = { id: number; userNickname: string; postId: number; createdAt: string; post?: MarketPost };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
-type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites';
+type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
 type ReferenceData = {
@@ -305,15 +305,11 @@ function App() {
         <div className="brand"><PawPrint /><span>萌宠集市</span></div>
         <nav>
           <button type="button" className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>首页</button>
-          <button type="button" className={page === 'categories' ? 'active' : ''} onClick={() => setPage('categories')}>分类</button>
-          <button type="button" className={page === 'pets' ? 'active' : ''} onClick={() => setPage('pets')}>宠物</button>
+          <button type="button" className={page === 'guide' ? 'active' : ''} onClick={() => setPage('guide')}>百科</button>
           <button type="button" className={page === 'market' ? 'active' : ''} onClick={() => setPage('market')}>市场</button>
           <button type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
-          <button type="button" className={page === 'mine' ? 'active' : ''} onClick={() => setPage('mine')}>我的</button>
-          <button type="button" className={page === 'profile' ? 'active' : ''} onClick={() => setPage('profile')}>主页</button>
-          <button type="button" className={page === 'messages' ? 'active' : ''} onClick={() => setPage('messages')}>私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
         </nav>
-        <LoginBox currentUser={currentUser} onLogin={handleLogin} onLogout={logout} />
+        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onLogin={handleLogin} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onLogout={logout} />
       </header>
 
       {page === 'home' && (
@@ -331,8 +327,7 @@ function App() {
           onToggleFavorite={toggleFavorite}
         />
       )}
-      {page === 'categories' && <CategoriesPage loading={categories.loading} categories={filteredCategories} />}
-      {page === 'pets' && <PetsPage loading={pets.loading} pets={filteredPets} onOpen={(pet) => setDetail({ type: 'pet', item: pet })} />}
+      {page === 'guide' && <GuidePage categoryLoading={categories.loading} petLoading={pets.loading} categories={filteredCategories} pets={filteredPets} onOpenPet={(pet) => setDetail({ type: 'pet', item: pet })} />}
       {page === 'market' && (
         <MarketPage
           searchQuery={searchQuery}
@@ -375,13 +370,22 @@ function App() {
   );
 }
 
-function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: UserProfile | null; onLogin: (user: UserProfile) => void; onLogout: () => void }) {
+function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMessages, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onLogin: (user: UserProfile) => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onLogout: () => void }) {
   const [name, setName] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
   if (currentUser) {
-    return <div className="userBadge"><User size={16} /><span>{currentUser.nickname}</span><button type="button" onClick={onLogout}>退出</button></div>;
+    return (
+      <div className="userBadge">
+        <User size={16} />
+        <span>{currentUser.nickname}</span>
+        <button type="button" className="secondary" onClick={onMine}>我的</button>
+        <button type="button" className="secondary" onClick={onProfile}>主页</button>
+        <button type="button" className="secondary" onClick={onMessages}>私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
+        <button type="button" onClick={onLogout}>退出</button>
+      </div>
+    );
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -450,8 +454,7 @@ function HomePage(props: {
       <section className="section dashboard">
         <SectionTitle icon={<Store />} title="今日概览" helper="从这里快速进入各个业务页面" />
         <div className="dashboardGrid">
-          <button type="button" onClick={() => props.onNavigate('categories')}><Tags /><strong>分类库</strong><span>{props.categories.length} 个分类</span></button>
-          <button type="button" onClick={() => props.onNavigate('pets')}><PawPrint /><strong>宠物展示</strong><span>{props.pets.length} 个宠物</span></button>
+          <button type="button" onClick={() => props.onNavigate('guide')}><Tags /><strong>宠物百科</strong><span>{props.categories.length} 个分类 · {props.pets.length} 个宠物</span></button>
           <button type="button" onClick={() => props.onNavigate('market')}><Store /><strong>售卖互换</strong><span>{props.posts.length} 条帖子</span></button>
           <button type="button" onClick={() => props.onNavigate('moments')}><Camera /><strong>日常分享</strong><span>{props.moments.length} 条日常</span></button>
         </div>
@@ -491,6 +494,38 @@ function CategoriesPage({ loading, categories }: { loading: boolean; categories:
           </article>
         ))}
         {!loading && categories.length === 0 && <EmptyState title="没有匹配的分类" helper="换个关键词或清空筛选条件再试。" />}
+      </div>
+    </section>
+  );
+}
+
+function GuidePage({ categoryLoading, petLoading, categories, pets, onOpenPet }: { categoryLoading: boolean; petLoading: boolean; categories: Category[]; pets: Pet[]; onOpenPet: (pet: Pet) => void }) {
+  return (
+    <section className="page section guidePage">
+      <SectionTitle icon={<Tags />} title="宠物百科" helper="分类库和宠物资料合并展示，发布内容时可参考平台分类" />
+      <div className="guideLayout">
+        <div>
+          <h3>分类库</h3>
+          <div className="categoryGrid compactGrid">
+            {categoryLoading && <LoadingState label="正在加载分类库" />}
+            {categories.map((category) => (
+              <article className="category" key={category.id}>
+                <h3>{category.name}</h3>
+                <p>{category.description}</p>
+                <div className="chips">{category.tags.split(',').map((tag) => <span key={tag}>{tag}</span>)}</div>
+              </article>
+            ))}
+            {!categoryLoading && categories.length === 0 && <EmptyState title="没有匹配的分类" helper="换个关键词或清空筛选条件再试。" />}
+          </div>
+        </div>
+        <div>
+          <h3>宠物资料</h3>
+          <div className="petGrid compactGrid">
+            {petLoading && <LoadingState label="正在加载宠物资料" />}
+            {pets.map((pet) => <PetCard key={pet.id} pet={pet} onOpen={onOpenPet} />)}
+            {!petLoading && pets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市、价格或关键词筛选。" />}
+          </div>
+        </div>
       </div>
     </section>
   );

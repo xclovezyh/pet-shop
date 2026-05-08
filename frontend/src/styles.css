@@ -118,6 +118,12 @@ nav button:hover {
   padding: 0 12px;
 }
 
+.userBadge button.secondary {
+  background: #f7faf8;
+  border: 1px solid #d7e5dc;
+  color: #19513d;
+}
+
 .userBadge span {
   color: #22352d;
   font-weight: 900;
@@ -436,6 +442,23 @@ h1 {
 .petCard,
 .moment {
   overflow: hidden;
+}
+
+.guideLayout {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.guideLayout > div > h3 {
+  color: #22352d;
+  font-size: 20px;
+  margin: 0 0 14px;
+}
+
+.compactGrid.categoryGrid,
+.compactGrid.petGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .clickable {
@@ -1322,6 +1345,7 @@ textarea {
   .hero,
   .split,
   .profilePanel,
+  .guideLayout,
   .previewSplit,
   .messageLayout {
     grid-template-columns: 1fr;
@@ -1356,6 +1380,8 @@ textarea {
 
   .categoryGrid,
   .petGrid,
+  .compactGrid.categoryGrid,
+  .compactGrid.petGrid,
   .momentGrid,
   .myColumns,
   .quickFilters {
@@ -1379,6 +1405,8 @@ textarea {
 
   .categoryGrid,
   .petGrid,
+  .compactGrid.categoryGrid,
+  .compactGrid.petGrid,
   .momentGrid,
   .regionGrid,
   .quickFilters,
