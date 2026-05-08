@@ -69,6 +69,7 @@ type Moment = {
   createdAt?: string;
 };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
+type PageKey = 'home' | 'categories' | 'pets' | 'market' | 'moments' | 'mine' | 'profile';
 type ReferenceData = {
   regions: Region[];
   postTypes: string[];
@@ -143,6 +144,7 @@ function App() {
   const [cityFilter, setCityFilter] = React.useState('全部');
   const [typeFilter, setTypeFilter] = React.useState('全部');
   const [sortMode, setSortMode] = React.useState<'latest' | 'oldest'>('latest');
+  const [page, setPage] = React.useState<PageKey>('home');
   const [currentUser, setCurrentUser] = React.useState<UserProfile | null>(() => {
     const raw = localStorage.getItem('petshop_user');
     return raw ? JSON.parse(raw) : null;
@@ -191,107 +193,57 @@ function App() {
       <header className="topbar">
         <div className="brand"><PawPrint /><span>萌宠集市</span></div>
         <nav>
-          <a href="#categories">分类</a>
-          <a href="#pets">展示</a>
-          <a href="#market">售卖互换</a>
-          <a href="#moments">日常</a>
-          <a href="#profile">主页</a>
-          <a href="#mine">我的</a>
+          <button type="button" className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>首页</button>
+          <button type="button" className={page === 'categories' ? 'active' : ''} onClick={() => setPage('categories')}>分类</button>
+          <button type="button" className={page === 'pets' ? 'active' : ''} onClick={() => setPage('pets')}>宠物</button>
+          <button type="button" className={page === 'market' ? 'active' : ''} onClick={() => setPage('market')}>市场</button>
+          <button type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
+          <button type="button" className={page === 'mine' ? 'active' : ''} onClick={() => setPage('mine')}>我的</button>
+          <button type="button" className={page === 'profile' ? 'active' : ''} onClick={() => setPage('profile')}>主页</button>
         </nav>
         <LoginBox currentUser={currentUser} onLogin={handleLogin} onLogout={logout} />
       </header>
 
-      <section className="hero">
-        <div className="heroCopy">
-          <p className="eyebrow">宠物百科 · 站内沟通 · 同城社区</p>
-          <h1>把宠物展示、交易互换和日常分享放在一个清爽空间里</h1>
-          <p className="lead">登录后可发布和管理自己的内容。交易沟通固定使用站内私信，前后端都会拦截手机号。</p>
-          <div className="search"><Search size={20} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜索猫咪、柯基、互换、领养、闲置用品" /></div>
-          <div className="quickFilters">
-            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-              <option value="全部">全部分类</option>
-              {availableCategories.map((category) => <option key={category}>{category}</option>)}
-            </select>
-            <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}>
-              <option value="全部">全部城市</option>
-              {availableCities.map((city) => <option key={city}>{city}</option>)}
-            </select>
-            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-              <option value="全部">全部类型</option>
-              {referenceData.data.postTypes.map((type) => <option key={type}>{type}</option>)}
-            </select>
-            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as 'latest' | 'oldest')}>
-              <option value="latest">最新发布</option>
-              <option value="oldest">最早发布</option>
-            </select>
-          </div>
-        </div>
-        <div className="heroPanel">
-          <Metric value={categories.data.length} label="分类库" />
-          <Metric value={pets.data.length} label="展示宠物" />
-          <Metric value={posts.data.length} label="交易帖子" />
-        </div>
-      </section>
-
-      <section id="categories" className="section">
-        <SectionTitle icon={<Tags />} title="宠物分类库" helper="发布内容时必须从平台分类库中选择" />
-        <div className="categoryGrid">
-          {categories.loading && <p>正在加载分类...</p>}
-          {filteredCategories.map((category) => (
-            <article className="category" key={category.id}>
-              <h3>{category.name}</h3>
-              <p>{category.description}</p>
-              <div className="chips">{category.tags.split(',').map((tag) => <span key={tag}>{tag}</span>)}</div>
-            </article>
-          ))}
-          {!categories.loading && filteredCategories.length === 0 && <EmptyState title="没有匹配的分类" helper="换个关键词或清空筛选条件再试。" />}
-        </div>
-      </section>
-
-      <section id="pets" className="section">
-        <SectionTitle icon={<Store />} title="宠物展示与售卖" helper="查看宠物基础信息，后续可扩展订单与审核" />
-        <div className="petGrid">
-          {filteredPets.map((pet) => (
-            <article className="petCard" key={pet.id} onClick={() => setDetail({ type: 'pet', item: pet })}>
-              {imageBox(pet.imageUrl, pet.name)}
-              <div className="petInfo">
-                <div className="between"><h3>{pet.name}</h3><span className="status">{pet.status}</span></div>
-                <p className="petBreed">{pet.breed} · {pet.age}</p>
-                <p className="sub"><MapPin size={15} />{pet.city}</p>
-                <p>{pet.personality}</p>
-                <div className="between cardFooter">
-                  <span className="price">{pet.price > 0 ? `￥${pet.price}` : '面议'}</span>
-                  <span className="health"><ShieldCheck size={15} />{pet.healthInfo}</span>
-                </div>
-              </div>
-            </article>
-          ))}
-          {filteredPets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市或关键词筛选。" />}
-        </div>
-      </section>
-
-      <section id="market" className="section split">
-        <div>
-          <SectionTitle icon={<Plus />} title="售卖 / 互换 / 领养帖子" helper="点击帖子可查看详情，联系入口统一为站内私信" />
-          <PostList posts={filteredPosts} onOpen={(post) => setDetail({ type: 'post', item: post })} />
-        </div>
-        <Composer categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onSuccess={reloadFeeds} />
-      </section>
-
-      <section id="moments" className="section">
-        <SectionTitle icon={<Camera />} title="用户日常分享" helper="记录宠物近况、养护经验和可爱的日常瞬间" />
-        <MomentList moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />
-      </section>
-
-      <section id="mine" className="section">
-        <SectionTitle icon={<User />} title="我的发布" helper="登录后可集中查看并删除自己的交易帖和日常" />
-        <MyPanel currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />
-      </section>
-
-      <section id="profile" className="section">
-        <SectionTitle icon={<User />} title="个人主页" helper="维护头像、简介、常驻城市，并集中进入收藏和私信" />
-        <ProfilePanel currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} />
-      </section>
+      {page === 'home' && (
+        <HomePage
+          categories={categories.data}
+          pets={pets.data}
+          posts={posts.data}
+          moments={moments.data}
+          onNavigate={setPage}
+          onOpenPet={(pet) => setDetail({ type: 'pet', item: pet })}
+          onOpenPost={(post) => setDetail({ type: 'post', item: post })}
+          onOpenMoment={(moment) => setDetail({ type: 'moment', item: moment })}
+        />
+      )}
+      {page === 'categories' && <CategoriesPage loading={categories.loading} categories={filteredCategories} />}
+      {page === 'pets' && <PetsPage pets={filteredPets} onOpen={(pet) => setDetail({ type: 'pet', item: pet })} />}
+      {page === 'market' && (
+        <MarketPage
+          searchQuery={searchQuery}
+          categoryFilter={categoryFilter}
+          cityFilter={cityFilter}
+          typeFilter={typeFilter}
+          sortMode={sortMode}
+          availableCategories={availableCategories}
+          availableCities={availableCities}
+          postTypes={referenceData.data.postTypes}
+          posts={filteredPosts}
+          categories={categories.data}
+          referenceData={referenceData.data}
+          currentUser={currentUser}
+          onSearch={setSearchQuery}
+          onCategory={setCategoryFilter}
+          onCity={setCityFilter}
+          onType={setTypeFilter}
+          onSort={setSortMode}
+          onOpenPost={(post) => setDetail({ type: 'post', item: post })}
+          onPublished={reloadFeeds}
+        />
+      )}
+      {page === 'moments' && <MomentsPage moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
+      {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />}
+      {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} onSaved={handleProfileSaved} />}
 
       {detail && <DetailModal detail={detail} currentUser={currentUser} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
@@ -337,6 +289,220 @@ function LoginBox({ currentUser, onLogin, onLogout }: { currentUser: UserProfile
       <input value={name} onChange={(event) => setName(event.target.value)} placeholder={error || '昵称登录'} />
       <button type="submit" disabled={busy}>{busy ? '...' : '登录'}</button>
     </form>
+  );
+}
+
+function HomePage(props: {
+  categories: Category[];
+  pets: Pet[];
+  posts: MarketPost[];
+  moments: Moment[];
+  onNavigate: (page: PageKey) => void;
+  onOpenPet: (pet: Pet) => void;
+  onOpenPost: (post: MarketPost) => void;
+  onOpenMoment: (moment: Moment) => void;
+}) {
+  return (
+    <>
+      <section className="hero">
+        <div className="heroCopy">
+          <p className="eyebrow">宠物百科 · 站内沟通 · 同城社区</p>
+          <h1>把宠物展示、交易互换和日常分享放在一个清爽空间里</h1>
+          <p className="lead">登录后可发布和管理自己的内容。交易沟通固定使用站内私信，前后端都会拦截手机号。</p>
+          <div className="heroActions">
+            <button type="button" onClick={() => props.onNavigate('market')}>进入市场</button>
+            <button type="button" onClick={() => props.onNavigate('profile')}>完善主页</button>
+          </div>
+        </div>
+        <div className="heroPanel">
+          <Metric value={props.categories.length} label="分类库" />
+          <Metric value={props.pets.length} label="展示宠物" />
+          <Metric value={props.posts.length} label="交易帖子" />
+        </div>
+      </section>
+      <section className="section dashboard">
+        <SectionTitle icon={<Store />} title="今日概览" helper="从这里快速进入各个业务页面" />
+        <div className="dashboardGrid">
+          <button type="button" onClick={() => props.onNavigate('categories')}><Tags /><strong>分类库</strong><span>{props.categories.length} 个分类</span></button>
+          <button type="button" onClick={() => props.onNavigate('pets')}><PawPrint /><strong>宠物展示</strong><span>{props.pets.length} 个宠物</span></button>
+          <button type="button" onClick={() => props.onNavigate('market')}><Store /><strong>售卖互换</strong><span>{props.posts.length} 条帖子</span></button>
+          <button type="button" onClick={() => props.onNavigate('moments')}><Camera /><strong>日常分享</strong><span>{props.moments.length} 条日常</span></button>
+        </div>
+      </section>
+      <section className="section previewSplit">
+        <div>
+          <SectionTitle icon={<Plus />} title="最新交易" helper="市场页可筛选城市、分类、类型和发布时间" />
+          <PostList posts={props.posts.slice(0, 3)} onOpen={props.onOpenPost} />
+        </div>
+        <div>
+          <SectionTitle icon={<Camera />} title="最新日常" helper="社区页集中查看用户分享" />
+          <MomentList moments={props.moments.slice(0, 2)} onOpen={props.onOpenMoment} />
+        </div>
+      </section>
+      <section className="section">
+        <SectionTitle icon={<PawPrint />} title="宠物推荐" helper="更多宠物信息在宠物页查看" />
+        <div className="petGrid">
+          {props.pets.slice(0, 4).map((pet) => <PetCard key={pet.id} pet={pet} onOpen={props.onOpenPet} />)}
+          {props.pets.length === 0 && <EmptyState title="还没有宠物展示" helper="后续可在管理端补充宠物资料。" />}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function CategoriesPage({ loading, categories }: { loading: boolean; categories: Category[] }) {
+  return (
+    <section className="page section">
+      <SectionTitle icon={<Tags />} title="宠物分类库" helper="发布内容时必须从平台分类库中选择" />
+      <div className="categoryGrid">
+        {loading && <p>正在加载分类...</p>}
+        {categories.map((category) => (
+          <article className="category" key={category.id}>
+            <h3>{category.name}</h3>
+            <p>{category.description}</p>
+            <div className="chips">{category.tags.split(',').map((tag) => <span key={tag}>{tag}</span>)}</div>
+          </article>
+        ))}
+        {!loading && categories.length === 0 && <EmptyState title="没有匹配的分类" helper="换个关键词或清空筛选条件再试。" />}
+      </div>
+    </section>
+  );
+}
+
+function PetsPage({ pets, onOpen }: { pets: Pet[]; onOpen: (pet: Pet) => void }) {
+  return (
+    <section className="page section">
+      <SectionTitle icon={<Store />} title="宠物展示与售卖" helper="查看宠物基础信息，后续可扩展订单与审核" />
+      <div className="petGrid">
+        {pets.map((pet) => <PetCard key={pet.id} pet={pet} onOpen={onOpen} />)}
+        {pets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市或关键词筛选。" />}
+      </div>
+    </section>
+  );
+}
+
+function MarketPage(props: {
+  searchQuery: string;
+  categoryFilter: string;
+  cityFilter: string;
+  typeFilter: string;
+  sortMode: 'latest' | 'oldest';
+  availableCategories: string[];
+  availableCities: string[];
+  postTypes: string[];
+  posts: MarketPost[];
+  categories: Category[];
+  referenceData: ReferenceData;
+  currentUser: UserProfile | null;
+  onSearch: (value: string) => void;
+  onCategory: (value: string) => void;
+  onCity: (value: string) => void;
+  onType: (value: string) => void;
+  onSort: (value: 'latest' | 'oldest') => void;
+  onOpenPost: (post: MarketPost) => void;
+  onPublished: () => void;
+}) {
+  return (
+    <section className="page section split">
+      <div>
+        <SectionTitle icon={<Plus />} title="售卖 / 互换 / 领养帖子" helper="筛选交易内容，点击帖子查看详情并发起站内私信" />
+        <FilterBar {...props} />
+        <PostList posts={props.posts} onOpen={props.onOpenPost} />
+      </div>
+      <Composer categories={props.categories} referenceData={props.referenceData} currentUser={props.currentUser} onSuccess={props.onPublished} />
+    </section>
+  );
+}
+
+function MomentsPage({ moments, onOpen }: { moments: Moment[]; onOpen: (moment: Moment) => void }) {
+  return (
+    <section className="page section">
+      <SectionTitle icon={<Camera />} title="用户日常分享" helper="记录宠物近况、养护经验和可爱的日常瞬间" />
+      <MomentList moments={moments} onOpen={onOpen} />
+    </section>
+  );
+}
+
+function MinePage(props: {
+  currentUser: UserProfile | null;
+  posts: MarketPost[];
+  moments: Moment[];
+  onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void;
+  onEdit: (detail: { type: 'post' | 'moment'; item: MarketPost | Moment }) => void;
+  onChanged: () => void;
+}) {
+  return (
+    <section className="page section">
+      <SectionTitle icon={<User />} title="我的发布" helper="登录后可集中查看并删除自己的交易帖和日常" />
+      <MyPanel {...props} />
+    </section>
+  );
+}
+
+function ProfilePage(props: { currentUser: UserProfile | null; referenceData: ReferenceData; posts: MarketPost[]; onSaved: (user: UserProfile) => void }) {
+  return (
+    <section className="page section">
+      <SectionTitle icon={<User />} title="个人主页" helper="维护头像、简介、常驻城市，并集中进入收藏和私信" />
+      <ProfilePanel {...props} />
+    </section>
+  );
+}
+
+function FilterBar(props: {
+  searchQuery: string;
+  categoryFilter: string;
+  cityFilter: string;
+  typeFilter: string;
+  sortMode: 'latest' | 'oldest';
+  availableCategories: string[];
+  availableCities: string[];
+  postTypes: string[];
+  onSearch: (value: string) => void;
+  onCategory: (value: string) => void;
+  onCity: (value: string) => void;
+  onType: (value: string) => void;
+  onSort: (value: 'latest' | 'oldest') => void;
+}) {
+  return (
+    <div className="filterPanel">
+      <div className="search"><Search size={20} /><input value={props.searchQuery} onChange={(event) => props.onSearch(event.target.value)} placeholder="搜索猫咪、柯基、互换、领养、闲置用品" /></div>
+      <div className="quickFilters">
+        <select value={props.categoryFilter} onChange={(event) => props.onCategory(event.target.value)}>
+          <option value="全部">全部分类</option>
+          {props.availableCategories.map((category) => <option key={category}>{category}</option>)}
+        </select>
+        <select value={props.cityFilter} onChange={(event) => props.onCity(event.target.value)}>
+          <option value="全部">全部城市</option>
+          {props.availableCities.map((city) => <option key={city}>{city}</option>)}
+        </select>
+        <select value={props.typeFilter} onChange={(event) => props.onType(event.target.value)}>
+          <option value="全部">全部类型</option>
+          {props.postTypes.map((type) => <option key={type}>{type}</option>)}
+        </select>
+        <select value={props.sortMode} onChange={(event) => props.onSort(event.target.value as 'latest' | 'oldest')}>
+          <option value="latest">最新发布</option>
+          <option value="oldest">最早发布</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function PetCard({ pet, onOpen }: { pet: Pet; onOpen: (pet: Pet) => void }) {
+  return (
+    <article className="petCard clickable" onClick={() => onOpen(pet)}>
+      {imageBox(pet.imageUrl, pet.name)}
+      <div className="petInfo">
+        <div className="between"><h3>{pet.name}</h3><span className="status">{pet.status}</span></div>
+        <p className="petBreed">{pet.breed} · {pet.age}</p>
+        <p className="sub"><MapPin size={15} />{pet.city}</p>
+        <p>{pet.personality}</p>
+        <div className="between cardFooter">
+          <span className="price">{pet.price > 0 ? `￥${pet.price}` : '面议'}</span>
+          <span className="health"><ShieldCheck size={15} />{pet.healthInfo}</span>
+        </div>
+      </div>
+    </article>
   );
 }
 

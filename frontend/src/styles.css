@@ -69,10 +69,21 @@ nav {
   justify-content: center;
 }
 
-nav a {
+nav button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
   color: #53635b;
+  cursor: pointer;
   font-size: 15px;
   font-weight: 800;
+  padding: 8px 10px;
+}
+
+nav button.active,
+nav button:hover {
+  background: #e6f2ec;
+  color: #19513d;
 }
 
 .loginBox,
@@ -161,6 +172,20 @@ h1 {
   padding: 0 16px;
 }
 
+.filterPanel {
+  background: #fff;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(32, 39, 36, 0.06);
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.filterPanel .search {
+  margin-top: 0;
+  max-width: none;
+}
+
 .search input {
   border: 0;
   height: 52px;
@@ -179,6 +204,10 @@ h1 {
 .quickFilters select {
   background: rgba(255, 255, 255, 0.96);
   border-color: rgba(255, 255, 255, 0.75);
+}
+
+.filterPanel .quickFilters select {
+  border-color: #d6e0da;
 }
 
 .heroPanel {
@@ -209,6 +238,10 @@ h1 {
 
 .section {
   padding: 54px 48px;
+}
+
+.page {
+  min-height: calc(100vh - 75px);
 }
 
 .section:nth-of-type(odd) {
@@ -242,6 +275,72 @@ h1 {
 .sectionTitle p {
   color: #66756d;
   margin: 4px 0 0;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.heroActions button {
+  background: #fff;
+  border: 0;
+  border-radius: 8px;
+  color: #19513d;
+  cursor: pointer;
+  font-weight: 950;
+  padding: 14px 18px;
+}
+
+.heroActions button + button {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+
+.dashboard {
+  background: #fff;
+}
+
+.dashboardGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboardGrid button {
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  color: #22352d;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-height: 128px;
+  padding: 18px;
+  text-align: left;
+}
+
+.dashboardGrid svg {
+  color: #19513d;
+}
+
+.dashboardGrid strong {
+  font-size: 19px;
+}
+
+.dashboardGrid span {
+  color: #66756d;
+  font-weight: 800;
+}
+
+.previewSplit {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .categoryGrid,
@@ -902,7 +1001,8 @@ textarea {
 
   .hero,
   .split,
-  .profilePanel {
+  .profilePanel,
+  .previewSplit {
     grid-template-columns: 1fr;
   }
 
@@ -926,6 +1026,10 @@ textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .dashboardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .composer {
     position: static;
   }
@@ -942,6 +1046,7 @@ textarea {
   .momentGrid,
   .regionGrid,
   .quickFilters,
+  .dashboardGrid,
   .myColumns,
   .mySummary {
     grid-template-columns: 1fr;
