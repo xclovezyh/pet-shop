@@ -93,6 +93,16 @@ http://localhost:5173/index.html
 
 前端开发代理默认转发 `/api` 到 `http://localhost:8080`，可用 `VITE_API_PROXY` 覆盖。
 
+## 账号登录
+
+前台账号入口在右上角“登录 / 注册”。当前支持：
+
+- 用户名 + 密码登录。
+- 手机号 + 验证码登录。
+- 手机号验证码注册账号。
+
+开发环境的验证码接口会直接返回验证码，便于本地调试；接入真实短信服务后，后端保留同一接口，不再把验证码返回给前端。
+
 ## 超级管理员
 
 管理后台只对 `SUPER_ADMIN` 角色开放。普通用户只能管理自己的发布、收藏和私信。
@@ -104,7 +114,7 @@ http://localhost:5173/index.html
 管理员口令：change-me-admin-code
 ```
 
-登录时在昵称中填写 `superadmin`，管理员口令中填写配置的口令，即可进入管理后台。生产环境必须通过环境变量修改：
+注册账号时展示昵称填写 `superadmin`，管理员口令中填写配置的口令，注册成功后该账号会成为 `SUPER_ADMIN`。生产环境必须通过环境变量修改：
 
 ```powershell
 $env:APP_ADMIN_NICKNAMES="your-admin-name"

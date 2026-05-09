@@ -108,6 +108,14 @@ nav button:hover::after {
   padding: 6px 8px;
 }
 
+.loginEntry {
+  color: #19513d;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 8px 14px;
+}
+
 .loginBox input {
   background: transparent;
   border: 0;
@@ -191,6 +199,134 @@ nav button:hover::after {
 .userMenuPanel button:hover {
   background: #eef5f1;
   color: #19513d;
+}
+
+.accountPage {
+  max-width: 980px;
+}
+
+.accountShell {
+  background: #fff;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  box-shadow: 0 16px 36px rgba(32, 39, 36, 0.08);
+  display: grid;
+  gap: 22px;
+  max-width: 680px;
+  padding: 24px;
+}
+
+.accountShell.signed {
+  align-items: center;
+  grid-template-columns: 1fr auto;
+}
+
+.accountTabs {
+  background: #eef4f1;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px;
+}
+
+.accountTabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #526159;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 42px;
+}
+
+.accountTabs button.active {
+  background: #19513d;
+  color: #fff;
+}
+
+.accountForm {
+  display: grid;
+  gap: 14px;
+}
+
+.accountForm label {
+  color: #4d5d55;
+  display: grid;
+  font-size: 13px;
+  font-weight: 900;
+  gap: 6px;
+}
+
+.accountForm input {
+  background: #f7faf8;
+  border: 1px solid #d7e5dc;
+  border-radius: 6px;
+  color: #202724;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.accountForm > button,
+.accountShell.signed > button {
+  background: #19513d;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.codeRow {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto;
+}
+
+.codeRow button {
+  background: #eef4f1;
+  border: 1px solid #cbdcd2;
+  border-radius: 6px;
+  color: #19513d;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.accountSummary {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.accountSummary h3 {
+  margin: 0 0 4px;
+}
+
+.accountSummary p {
+  color: #68766f;
+  margin: 2px 0;
+}
+
+.accountSummary strong {
+  color: #19513d;
+}
+
+.avatarLarge {
+  align-items: center;
+  background: #19513d;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  font-size: 28px;
+  font-weight: 900;
+  height: 64px;
+  justify-content: center;
+  width: 64px;
 }
 
 .userMenuPanel .logoutItem {
@@ -1831,13 +1967,13 @@ textarea {
   }
 
   .loginBox {
-    align-items: stretch;
-    display: grid;
-    grid-template-columns: auto 1fr;
+    align-items: center;
+    display: flex;
   }
 
-  .loginBox button {
-    grid-column: 1 / -1;
+  .accountShell.signed,
+  .codeRow {
+    grid-template-columns: 1fr;
   }
 
   .detailModal {

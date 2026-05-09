@@ -64,7 +64,7 @@ const tradeTypeConfigs: Record<string, { title: string; priceLabel: string; desc
   }
 };
 
-type AppUser = { id: number; nickname: string; role?: string; blacklisted?: boolean; blacklistReason?: string };
+type AppUser = { id: number; nickname: string; username?: string; phone?: string; role?: string; blacklisted?: boolean; blacklistReason?: string };
 type UserProfile = AppUser & { avatarUrl?: string; bio?: string; city?: string };
 type Category = { id: number; name: string; description: string; tags: string };
 type Pet = {
@@ -125,7 +125,7 @@ type TradeIntent = { id: number; postId: number; postTitle: string; requester: s
 type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reporter: string; reason: string; status: string; createdAt: string; handledBy?: string; handledAt?: string; handleNote?: string };
 type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
-type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin';
+type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin' | 'account';
 type AdminTab = 'reports' | 'users' | 'posts' | 'moments' | 'categories' | 'regions';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
@@ -418,7 +418,7 @@ function App() {
           <button type="button" className={page === 'market' ? 'active' : ''} onClick={() => setPage('market')}>市场</button>
           <button type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
         </nav>
-        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onLogin={handleLogin} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onAdmin={() => setPage('admin')} onLogout={logout} />
+        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onAccount={() => setPage('account')} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onAdmin={() => setPage('admin')} onLogout={logout} />
       </header>
 
       {page === 'home' && (
@@ -473,6 +473,7 @@ function App() {
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
       {page === 'favorites' && <FavoritesPage currentUser={currentUser} posts={favoritePosts} favoriteIds={favoriteIds} onOpen={(post) => setDetail({ type: 'post', item: post })} onToggleFavorite={toggleFavorite} />}
       {page === 'admin' && <AdminPage currentUser={currentUser} onOpen={setDetail} onChanged={reloadFeeds} />}
+      {page === 'account' && <AccountPage currentUser={currentUser} onLogin={handleLogin} onProfile={() => setPage('profile')} />}
 
       {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} sentIntents={sentIntents} onFavorite={toggleFavorite} onReport={reportContent} onMessage={startMessage} onTradeIntent={submitTradeIntent} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
@@ -480,11 +481,7 @@ function App() {
   );
 }
 
-function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMessages, onAdmin, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onLogin: (user: UserProfile) => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onAdmin: () => void; onLogout: () => void }) {
-  const [name, setName] = React.useState('');
-  const [adminCode, setAdminCode] = React.useState('');
-  const [error, setError] = React.useState('');
-  const [busy, setBusy] = React.useState(false);
+function LoginBox({ currentUser, unreadCount, onAccount, onMine, onProfile, onMessages, onAdmin, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onAccount: () => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onAdmin: () => void; onLogout: () => void }) {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -530,37 +527,143 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
     );
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nickname = name.trim();
+  return (
+    <button type="button" className="loginBox loginEntry" onClick={onAccount}>
+      <LogIn size={16} />
+      <span>登录 / 注册</span>
+    </button>
+  );
+}
+
+function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserProfile | null; onLogin: (user: UserProfile) => void; onProfile: () => void }) {
+  const [mode, setMode] = React.useState<'password' | 'sms' | 'register'>('password');
+  const [account, setAccount] = React.useState('');
+  const [username, setUsername] = React.useState('');
+  const [nickname, setNickname] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [code, setCode] = React.useState('');
+  const [adminCode, setAdminCode] = React.useState('');
+  const [notice, setNotice] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
+
+  async function sendCode() {
+    const mobile = phone.trim();
     setError('');
-    if (!nickname) return setError('请输入昵称');
-    if (phonePattern.test(nickname)) return setError('昵称不能使用手机号');
-    setBusy(true);
+    setNotice('');
+    if (!phonePattern.test(mobile)) return setError('请输入正确的手机号');
+    setSending(true);
     try {
-      const res = await fetch(`${API_BASE}/users/login`, {
+      const res = await fetch(`${API_BASE}/users/verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, adminCode })
+        body: JSON.stringify({ phone: mobile })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || await readError(res));
+      setCode(data.code || '');
+      setNotice(data.code ? `开发验证码：${data.code}` : '验证码已发送，请查看短信。');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '验证码发送失败');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    setBusy(true);
+    try {
+      const endpoint = mode === 'register' ? '/users/register' : mode === 'sms' ? '/users/login/sms' : '/users/login/password';
+      const payload = mode === 'register'
+        ? { username, nickname, phone, password, code, adminCode }
+        : mode === 'sms'
+          ? { phone, code, adminCode }
+          : { account, password, adminCode };
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error(await readError(res));
-      onLogin(await res.json());
-      setName('');
-      setAdminCode('');
+      const user = await res.json();
+      onLogin(user);
+      setNotice(mode === 'register' ? '注册成功，已自动登录。' : '登录成功。');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败，请检查后端服务。');
+      setError(err instanceof Error ? err.message : '操作失败，请稍后重试。');
     } finally {
       setBusy(false);
     }
   }
 
+  if (currentUser) {
+    return (
+      <section className="page section accountPage">
+        <SectionTitle icon={<User />} title="账号中心" helper="管理登录身份、个人资料和站内沟通入口" />
+        <div className="accountShell signed">
+          <div className="accountSummary">
+            <span className="avatarLarge">{currentUser.nickname.slice(0, 1)}</span>
+            <div>
+              <h3>{currentUser.nickname}</h3>
+              <p>{currentUser.username ? `用户名：${currentUser.username}` : '已登录账号'}</p>
+              {currentUser.phone && <p>手机号：{maskPhone(currentUser.phone)}</p>}
+              {isSuperAdmin(currentUser) && <strong>超级管理员</strong>}
+            </div>
+          </div>
+          <button type="button" onClick={onProfile}>查看个人主页</button>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <form className="loginBox" onSubmit={submit} title={error || '登录后可发布'}>
-      <LogIn size={16} />
-      <input value={name} onChange={(event) => setName(event.target.value)} placeholder={error || '昵称登录'} />
-      <input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} placeholder="管理员口令（可选）" type="password" />
-      <button type="submit" disabled={busy}>{busy ? '...' : '登录'}</button>
-    </form>
+    <section className="page section accountPage">
+      <SectionTitle icon={<LogIn />} title="登录 / 注册" helper="使用手机号验证码或用户名密码进入账号，发布、收藏、私信都绑定到你的账号" />
+      <div className="accountShell">
+        <div className="accountTabs">
+          <button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>密码登录</button>
+          <button type="button" className={mode === 'sms' ? 'active' : ''} onClick={() => setMode('sms')}>验证码登录</button>
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册账号</button>
+        </div>
+        <form className="accountForm" onSubmit={submit}>
+          {mode === 'password' && (
+            <>
+              <label>用户名或手机号<input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
+              <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入密码" /></label>
+            </>
+          )}
+          {mode === 'sms' && (
+            <>
+              <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="输入手机号" /></label>
+              <div className="codeRow">
+                <label>验证码<input value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                <button type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+              </div>
+            </>
+          )}
+          {mode === 'register' && (
+            <>
+              <label>用户名<input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="字母开头，4-20 位" /></label>
+              <label>展示昵称<input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="发布和私信中显示的名字" /></label>
+              <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于验证码注册" /></label>
+              <div className="codeRow">
+                <label>验证码<input value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                <button type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+              </div>
+              <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
+            </>
+          )}
+          <label>管理员口令<input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} type="password" placeholder="普通用户无需填写" /></label>
+          {error && <p className="formError">{error}</p>}
+          {notice && <p className="formNote">{notice}</p>}
+          <button type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : '登录'}</button>
+        </form>
+      </div>
+    </section>
   );
 }
 
@@ -1926,6 +2029,10 @@ function AuditBadge({ value }: { value?: string }) {
 
 function isSuperAdmin(user: UserProfile | null) {
   return user?.role === 'SUPER_ADMIN';
+}
+
+function maskPhone(value?: string) {
+  return value ? value.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '';
 }
 
 function formatPrice(value?: number) {
