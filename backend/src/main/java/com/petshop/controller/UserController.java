@@ -78,6 +78,9 @@ public class UserController {
         if (PHONE_PATTERN.matcher(nickname).find()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "昵称不能使用手机号");
         }
+        if (isAdminNickname(nickname) || isAdminNickname(username)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "超级管理员账号不能在前台注册，请使用密码登录并填写管理员口令完成初始化");
+        }
         ContentSafety.validate(nickname);
         verifyCode(phone, payload.get("code"));
         if (repository.existsByUsername(username)) {
@@ -91,7 +94,7 @@ public class UserController {
         user.setPhone(phone);
         user.setNickname(nickname);
         setPassword(user, password);
-        user.setRole(resolveRole(nickname, payload.get("adminCode")));
+        user.setRole(ROLE_USER);
         user.setBlacklisted(false);
         user.setCreatedAt(LocalDateTime.now());
         user.setLastLoginAt(LocalDateTime.now());
@@ -107,7 +110,7 @@ public class UserController {
         }
         AppUser user = repository.findByUsername(account)
                 .orElseGet(() -> repository.findByPhone(account)
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误")));
+                        .orElseGet(() -> createAdminOnFirstLogin(account, password, payload.get("adminCode"))));
         if (isBlank(user.getPasswordHash()) || !PASSWORD_ENCODER.matches(password, user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
         }
@@ -194,14 +197,21 @@ public class UserController {
         return repository.save(user);
     }
 
-    private String resolveRole(String nickname, String suppliedAdminCode) {
-        if (!isAdminNickname(nickname)) {
-            return ROLE_USER;
+    private AppUser createAdminOnFirstLogin(String account, String password, String suppliedAdminCode) {
+        if (!isAdminNickname(account)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
         }
         if (!adminCode.equals(safe(suppliedAdminCode))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "管理员账号需要填写正确的管理员口令");
         }
-        return UserGuard.ROLE_SUPER_ADMIN;
+        AppUser user = new AppUser();
+        user.setUsername(account);
+        user.setNickname(account);
+        user.setRole(UserGuard.ROLE_SUPER_ADMIN);
+        user.setBlacklisted(false);
+        user.setCreatedAt(LocalDateTime.now());
+        setPassword(user, password);
+        return repository.save(user);
     }
 
     private void maybePromoteAdmin(AppUser user, String suppliedAdminCode) {

@@ -580,7 +580,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
     try {
       const endpoint = mode === 'register' ? '/users/register' : mode === 'sms' ? '/users/login/sms' : '/users/login/password';
       const payload = mode === 'register'
-        ? { username, nickname, phone, password, code, adminCode }
+        ? { username, nickname, phone, password, code }
         : mode === 'sms'
           ? { phone, code, adminCode }
           : { account, password, adminCode };
@@ -634,6 +634,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
             <>
               <label>用户名或手机号<input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
               <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入密码" /></label>
+              <p className="formNote">超级管理员首次登录请使用配置的管理员账号，填写管理员口令后会自动初始化。</p>
             </>
           )}
           {mode === 'sms' && (
@@ -657,7 +658,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
               <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
             </>
           )}
-          <label>管理员口令<input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} type="password" placeholder="普通用户无需填写" /></label>
+          {mode !== 'register' && <label>管理员口令<input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} type="password" placeholder="普通用户无需填写" /></label>}
           {error && <p className="formError">{error}</p>}
           {notice && <p className="formNote">{notice}</p>}
           <button type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : '登录'}</button>
@@ -2083,8 +2084,20 @@ function parseRegion(value: string | undefined, regions: Region[]) {
 async function readError(res: Response) {
   try {
     const data = await res.json();
-    return data.message || data.error || '请求失败，请检查填写内容。';
+    if (data.message && data.message !== res.statusText) return data.message;
+    if (data.error && data.error !== res.statusText) return data.error;
+    if (res.status === 400) return '请求内容不符合要求，请检查填写项。';
+    if (res.status === 401) return '账号或密码不正确。';
+    if (res.status === 403) return '没有权限执行这个操作。';
+    if (res.status === 404) return '没有找到对应的数据。';
+    return '请求失败，请检查填写内容。';
   } catch {
+    try {
+      const text = await res.text();
+      if (text.trim()) return text.trim();
+    } catch {
+      return '请求失败，请检查后端服务是否正常运行。';
+    }
     return '请求失败，请检查后端服务是否正常运行。';
   }
 }

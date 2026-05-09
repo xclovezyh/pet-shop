@@ -114,7 +114,7 @@ http://localhost:5173/index.html
 管理员口令：change-me-admin-code
 ```
 
-注册账号时展示昵称填写 `superadmin`，管理员口令中填写配置的口令，注册成功后该账号会成为 `SUPER_ADMIN`。生产环境必须通过环境变量修改：
+超级管理员不走前台普通注册。首次使用时在“密码登录”里填写管理员昵称、准备使用的密码和管理员口令，系统会自动初始化 `SUPER_ADMIN` 账号。之后仍使用该账号从密码登录进入管理后台。生产环境必须通过环境变量修改：
 
 ```powershell
 $env:APP_ADMIN_NICKNAMES="your-admin-name"
