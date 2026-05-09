@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface ContentReportRepository extends JpaRepository<ContentReport, Long> {
     List<ContentReport> findByReporterOrderByCreatedAtDesc(String reporter);
+    List<ContentReport> findAllByOrderByCreatedAtDesc();
 }

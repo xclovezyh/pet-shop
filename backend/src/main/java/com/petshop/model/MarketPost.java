@@ -29,6 +29,7 @@ public class MarketPost {
     private String contact;
     private String author;
     private String status;
+    private String auditStatus;
     private BigDecimal price;
     private LocalDateTime createdAt;
 

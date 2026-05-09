@@ -3,10 +3,12 @@ package com.petshop.controller;
 import com.petshop.model.MarketPost;
 import com.petshop.model.PrivateMessage;
 import com.petshop.model.PrivateMessageThread;
+import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.MarketPostRepository;
 import com.petshop.repository.PrivateMessageRepository;
 import com.petshop.repository.PrivateMessageThreadRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.UserGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,11 +30,13 @@ public class PrivateMessageController {
     private final PrivateMessageThreadRepository threads;
     private final PrivateMessageRepository messages;
     private final MarketPostRepository posts;
+    private final AppUserRepository users;
 
-    public PrivateMessageController(PrivateMessageThreadRepository threads, PrivateMessageRepository messages, MarketPostRepository posts) {
+    public PrivateMessageController(PrivateMessageThreadRepository threads, PrivateMessageRepository messages, MarketPostRepository posts, AppUserRepository users) {
         this.threads = threads;
         this.messages = messages;
         this.posts = posts;
+        this.users = users;
     }
 
     @GetMapping
@@ -157,6 +161,7 @@ public class PrivateMessageController {
         if (isBlank(user)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再使用私信");
         }
+        UserGuard.requireActive(users, user, "使用私信");
     }
 
     private boolean isBlank(String value) {

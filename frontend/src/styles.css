@@ -699,6 +699,20 @@ h1 {
   gap: 8px;
 }
 
+.auditBadge {
+  background: #fff4db;
+  border-radius: 999px;
+  color: #95601b;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 9px;
+}
+
+.auditBadge.removed {
+  background: #f7e8e5;
+  color: #a13f32;
+}
+
 .composer {
   padding: 18px;
   position: sticky;
@@ -1104,10 +1118,13 @@ textarea {
 }
 
 .mineRow button {
+  align-items: center;
   background: transparent;
   border: 0;
   color: #22352d;
   cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
   font-weight: 900;
   padding: 8px;
   text-align: left;

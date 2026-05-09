@@ -2,9 +2,11 @@ package com.petshop.controller;
 
 import com.petshop.model.Moment;
 import com.petshop.model.MomentComment;
+import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.MomentCommentRepository;
 import com.petshop.repository.MomentRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.UserGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,17 +27,23 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/moments")
 public class MomentController {
+    private static final String AUDIT_APPROVED = "审核通过";
+    private static final String AUDIT_REMOVED = "已下架";
+
     private final MomentRepository repository;
     private final MomentCommentRepository comments;
+    private final AppUserRepository users;
 
-    public MomentController(MomentRepository repository, MomentCommentRepository comments) {
+    public MomentController(MomentRepository repository, MomentCommentRepository comments, AppUserRepository users) {
         this.repository = repository;
         this.comments = comments;
+        this.users = users;
     }
 
     @GetMapping
     public List<Moment> list() {
         return repository.findAll().stream()
+                .filter(moment -> !AUDIT_REMOVED.equals(moment.getAuditStatus()))
                 .sorted(Comparator.comparing(Moment::getCreatedAt).reversed())
                 .collect(Collectors.toList());
     }
@@ -51,6 +59,7 @@ public class MomentController {
         validate(moment);
         moment.setCreatedAt(LocalDateTime.now());
         moment.setLikes(moment.getLikes() == null ? 0 : moment.getLikes());
+        moment.setAuditStatus(AUDIT_APPROVED);
         return repository.save(moment);
     }
 
@@ -73,6 +82,7 @@ public class MomentController {
         if (isBlank(comment.getAuthor())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再评论");
         }
+        UserGuard.requireActive(users, comment.getAuthor(), "评论");
         if (isBlank(comment.getContent())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请输入评论内容");
         }
@@ -89,6 +99,7 @@ public class MomentController {
         if (!safe(moment.getAuthor()).equals(author)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能删除自己的日常");
         }
+        UserGuard.requireActive(users, author, "删除日常");
         repository.delete(moment);
     }
 
@@ -98,10 +109,12 @@ public class MomentController {
         if (!safe(existing.getAuthor()).equals(author)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能编辑自己的日常");
         }
+        UserGuard.requireActive(users, author, "编辑日常");
         update.setId(existing.getId());
         update.setAuthor(existing.getAuthor());
         update.setCreatedAt(existing.getCreatedAt());
         update.setLikes(existing.getLikes() == null ? 0 : existing.getLikes());
+        update.setAuditStatus(AUDIT_APPROVED);
         validate(update);
         return repository.save(update);
     }
@@ -110,6 +123,7 @@ public class MomentController {
         if (isBlank(moment.getAuthor())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再发布");
         }
+        UserGuard.requireActive(users, moment.getAuthor(), "发布日常");
         if (isBlank(moment.getCategory())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择宠物分类");
         }

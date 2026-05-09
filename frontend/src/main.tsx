@@ -32,7 +32,7 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const tradeStatuses = ['在售', '已预约', '已成交', '已关闭'];
 
-type AppUser = { id: number; nickname: string };
+type AppUser = { id: number; nickname: string; blacklisted?: boolean; blacklistReason?: string };
 type UserProfile = AppUser & { avatarUrl?: string; bio?: string; city?: string };
 type Category = { id: number; name: string; description: string; tags: string };
 type Pet = {
@@ -71,6 +71,7 @@ type MarketPost = {
   imageUrls?: string;
   price?: number;
   status?: string;
+  auditStatus?: string;
   createdAt?: string;
 };
 type Moment = {
@@ -81,6 +82,7 @@ type Moment = {
   city?: string;
   content: string;
   likes: number;
+  auditStatus?: string;
   imageUrl: string;
   imageUrls?: string;
   createdAt?: string;
@@ -218,6 +220,11 @@ function App() {
     fetch(`${API_BASE}/users/exists?nickname=${encodeURIComponent(currentUser.nickname)}`)
       .then((res) => res.ok ? res.json() : Promise.reject())
       .then((user) => {
+        if (user.blacklisted) {
+          alert(user.blacklistReason || '账号已被限制，暂不能继续操作。');
+          logout();
+          return;
+        }
         localStorage.setItem('petshop_user', JSON.stringify(user));
         setCurrentUser(user);
       })
@@ -805,7 +812,7 @@ function PostList({ posts, currentUser, favoriteIds, onOpen, onToggleFavorite }:
       {posts.map((post) => (
         <article className="post clickable" key={post.id} onClick={() => onOpen(post)}>
           <div className="between">
-            <div className="inlineBadges"><span className="type">{post.type}</span><span className="status">{post.status || '在售'}</span></div>
+            <div className="inlineBadges"><span className="type">{post.type}</span><span className="status">{post.status || '在售'}</span><AuditBadge value={post.auditStatus} /></div>
             <button type="button" className={favoriteIds.has(post.id) ? 'favoriteButton active' : 'favoriteButton'} title={currentUser ? '收藏帖子' : '登录后收藏'} onClick={(event) => { event.stopPropagation(); onToggleFavorite(post); }}><Heart size={15} />{favoriteIds.has(post.id) ? '已收藏' : '收藏'}</button>
           </div>
           <h3>{post.title}</h3>
@@ -830,7 +837,7 @@ function MomentList({ moments, onOpen }: { moments: Moment[]; onOpen: (moment: M
       {moments.map((moment) => (
         <article className="moment clickable" key={moment.id} onClick={() => onOpen(moment)}>
           {imageBox(primaryImage(moment), moment.petName || moment.author)}
-          <div><span className="type">{moment.category || '日常'}</span><h3>{moment.author} 和 {moment.petName}</h3><p>{moment.content}</p><div className="momentMeta"><span>{moment.city || '未选择地区'}</span><span className="likes"><Heart size={15} />{moment.likes}</span></div></div>
+          <div><div className="inlineBadges"><span className="type">{moment.category || '日常'}</span><AuditBadge value={moment.auditStatus} /></div><h3>{moment.author} 和 {moment.petName}</h3><p>{moment.content}</p><div className="momentMeta"><span>{moment.city || '未选择地区'}</span><span className="likes"><Heart size={15} />{moment.likes}</span></div></div>
         </article>
       ))}
     </div>
@@ -849,6 +856,7 @@ function MyPanel(props: {
   onIntentStatus: (intent: TradeIntent, status: string) => void;
 }) {
   if (!props.currentUser) return <div className="myPanel emptyState">登录后，这里会显示你发布的交易帖和日常。</div>;
+  if (props.currentUser.blacklisted) return <div className="myPanel emptyState">{props.currentUser.blacklistReason || '账号已被限制，暂不能发布或互动。'}</div>;
   const myPosts = props.posts.filter((post) => post.author === props.currentUser!.nickname);
   const myMoments = props.moments.filter((moment) => moment.author === props.currentUser!.nickname);
 
@@ -883,7 +891,7 @@ function MyPanel(props: {
           <h3>交易帖</h3>
           {myPosts.length ? myPosts.map((post) => (
             <div className="mineRow" key={post.id}>
-              <button type="button" onClick={() => props.onOpen({ type: 'post', item: post })}>{post.title}</button>
+              <button type="button" onClick={() => props.onOpen({ type: 'post', item: post })}>{post.title}<AuditBadge value={post.auditStatus} /></button>
               <button type="button" className="editIcon" title="编辑" onClick={() => props.onEdit({ type: 'post', item: post })}><Pencil size={16} /></button>
               <button type="button" className="closeTradeIcon" title="关闭交易" disabled={(post.status || '在售') === '已关闭'} onClick={() => closePost(post)}>关</button>
               <button type="button" className="dangerIcon" onClick={() => remove('posts', post.id)}><Trash2 size={16} /></button>
@@ -894,7 +902,7 @@ function MyPanel(props: {
           <h3>日常</h3>
           {myMoments.length ? myMoments.map((moment) => (
             <div className="mineRow" key={moment.id}>
-              <button type="button" onClick={() => props.onOpen({ type: 'moment', item: moment })}>{moment.petName} 的日常</button>
+              <button type="button" onClick={() => props.onOpen({ type: 'moment', item: moment })}>{moment.petName} 的日常<AuditBadge value={moment.auditStatus} /></button>
               <button type="button" className="editIcon" title="编辑" onClick={() => props.onEdit({ type: 'moment', item: moment })}><Pencil size={16} /></button>
               <button type="button" className="dangerIcon" onClick={() => remove('moments', moment.id)}><Trash2 size={16} /></button>
             </div>
@@ -968,6 +976,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
   const [city, setCity] = React.useState(selectedProvince.cities[0].name);
   const selectedCity = selectedProvince.cities.find((item) => item.name === city) || selectedProvince.cities[0];
   const [district, setDistrict] = React.useState(selectedCity.districts[0]);
+  const canPublish = Boolean(currentUser && !currentUser.blacklisted);
 
   React.useEffect(() => {
     const nextCity = selectedProvince.cities[0].name;
@@ -1032,6 +1041,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     setError('');
     const formElement = event.currentTarget;
     if (!currentUser) return setError('请先登录后再发布内容。');
+    if (currentUser.blacklisted) return setError(currentUser.blacklistReason || '账号已被限制，暂不能发布内容。');
     const form = new FormData(formElement);
     const body = Object.fromEntries(form.entries());
     if (hasUnsafeContent(Object.values(body).join(' '))) return setError('请不要填写手机号、微信号、QQ 号或敏感词，平台只允许站内沟通。');
@@ -1068,24 +1078,25 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
       <div className="composerHeader"><h3>发布中心</h3><span>{currentUser ? `当前用户：${currentUser.nickname}` : '登录后可发布'}</span></div>
       <div className="tabs"><button type="button" className={mode === 'post' ? 'active' : ''} onClick={() => setMode('post')}>交易帖</button><button type="button" className={mode === 'moment' ? 'active' : ''} onClick={() => setMode('moment')}>日常</button></div>
       {!currentUser && <div className="locked"><Lock size={18} /><span>请先在右上角登录，之后才能发布帖子或日常。</span></div>}
+      {currentUser?.blacklisted && <div className="locked"><Lock size={18} /><span>{currentUser.blacklistReason || '账号已被限制，暂不能发布帖子或日常。'}</span></div>}
       <form onSubmit={submit}>
         {mode === 'post' ? (
           <>
-            <input name="title" placeholder="标题" required disabled={!currentUser} />
-            <select name="type" defaultValue={referenceData.postTypes[0] || '互换'} disabled={!currentUser}>{referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}</select>
-            <select name="status" defaultValue="在售" disabled={!currentUser}>{tradeStatuses.map((status) => <option key={status}>{status}</option>)}</select>
-            <input name="price" type="number" min="0" step="1" placeholder="价格，互换或面议可填 0" disabled={!currentUser} />
+            <input name="title" placeholder="标题" required disabled={!canPublish} />
+            <select name="type" defaultValue={referenceData.postTypes[0] || '互换'} disabled={!canPublish}>{referenceData.postTypes.map((type) => <option key={type}>{type}</option>)}</select>
+            <select name="status" defaultValue="在售" disabled={!canPublish}>{tradeStatuses.map((status) => <option key={status}>{status}</option>)}</select>
+            <input name="price" type="number" min="0" step="1" placeholder="价格，互换或面议可填 0" disabled={!canPublish} />
           </>
-        ) : <input name="petName" placeholder="宠物名字" required disabled={!currentUser} />}
-        <select name="category" required disabled={!currentUser}>{categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select>
-        <RegionPicker province={province} city={city} district={district} selectedProvince={selectedProvince} selectedCity={selectedCity} regions={regions} disabled={!currentUser} onProvince={setProvince} onCity={setCity} onDistrict={setDistrict} />
-        {mode === 'post' ? <textarea name="description" placeholder="描述需求、宠物状态或交易条件。请勿填写手机号。" required disabled={!currentUser} /> : <textarea name="content" placeholder="分享今天的宠物日常。请勿填写手机号。" required disabled={!currentUser} />}
+        ) : <input name="petName" placeholder="宠物名字" required disabled={!canPublish} />}
+        <select name="category" required disabled={!canPublish}>{categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select>
+        <RegionPicker province={province} city={city} district={district} selectedProvince={selectedProvince} selectedCity={selectedCity} regions={regions} disabled={!canPublish} onProvince={setProvince} onCity={setCity} onDistrict={setDistrict} />
+        {mode === 'post' ? <textarea name="description" placeholder="描述需求、宠物状态或交易条件。请勿填写手机号。" required disabled={!canPublish} /> : <textarea name="content" placeholder="分享今天的宠物日常。请勿填写手机号。" required disabled={!canPublish} />}
         <div className="contactOnly"><MessageCircle size={16} /><span>联系方式固定为站内私信</span></div>
-        <label className="fileInput"><Camera size={18} /><span>{imageUrls.length ? `已上传 ${imageUrls.length} 张` : '上传图片'}</span><input type="file" accept="image/*" multiple disabled={!currentUser} onChange={(e) => e.target.files && upload(e.target.files)} /></label>
+        <label className="fileInput"><Camera size={18} /><span>{imageUrls.length ? `已上传 ${imageUrls.length} 张` : '上传图片'}</span><input type="file" accept="image/*" multiple disabled={!canPublish} onChange={(e) => e.target.files && upload(e.target.files)} /></label>
         <p className="fileHint">支持 JPG、PNG、WebP、GIF，最多 6 张，单张不超过 5MB。</p>
         {imagePreviews.length > 0 && <div className="imagePreviewGrid">{imagePreviews.map((preview, index) => <div className="imagePreview" key={preview}><img src={preview} alt={`上传预览 ${index + 1}`} /><button type="button" onClick={() => removeImage(index)}>移除</button></div>)}</div>}
         {error && <p className="formError">{error}</p>}
-        <button className="submit" disabled={busy || !currentUser}>{busy ? '发布中...' : '发布'}</button>
+        <button className="submit" disabled={busy || !canPublish}>{busy ? '发布中...' : '发布'}</button>
       </form>
     </aside>
   );
@@ -1210,6 +1221,7 @@ function ProfilePanel(props: {
   if (!props.currentUser) {
     return <EmptyState title="登录后查看个人主页" helper="个人资料、收藏入口和私信入口会集中显示在这里。" />;
   }
+  const accountLocked = Boolean(props.currentUser.blacklisted);
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1242,14 +1254,15 @@ function ProfilePanel(props: {
         </div>
       </div>
       <form className="profileForm" onSubmit={saveProfile}>
-        <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="头像图片地址" />
-        <select value={city} onChange={(event) => setCity(event.target.value)}>
+        {accountLocked && <p className="formError">{props.currentUser.blacklistReason || '账号已被限制，暂不能修改个人资料。'}</p>}
+        <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="头像图片地址" disabled={accountLocked} />
+        <select value={city} onChange={(event) => setCity(event.target.value)} disabled={accountLocked}>
           <option value="">选择常驻城市</option>
           {cities.map((item) => <option key={item}>{item}</option>)}
         </select>
-        <textarea value={bio} onChange={(event) => setBio(event.target.value)} placeholder="简介，例如养宠经验、偏好的宠物类型或交易习惯" />
+        <textarea value={bio} onChange={(event) => setBio(event.target.value)} placeholder="简介，例如养宠经验、偏好的宠物类型或交易习惯" disabled={accountLocked} />
         {status && <p className="formNote">{status}</p>}
-        <button className="submit" type="submit">保存个人资料</button>
+        <button className="submit" type="submit" disabled={accountLocked}>保存个人资料</button>
       </form>
       <div className="profileActions">
         <button type="button" onClick={props.onFavorites}><Heart size={18} /><strong>我的收藏</strong><span>{props.favoriteCount} 条收藏</span></button>
@@ -1583,6 +1596,12 @@ function statusClass(status: string) {
   if (status === '已拒绝') return 'rejected';
   if (status === '已取消') return 'canceled';
   return 'pending';
+}
+
+function AuditBadge({ value }: { value?: string }) {
+  const status = value || '审核通过';
+  if (status === '审核通过') return null;
+  return <span className={status === '已下架' ? 'auditBadge removed' : 'auditBadge'}>{status}</span>;
 }
 
 function formatPrice(value?: number) {

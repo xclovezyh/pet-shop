@@ -2,6 +2,8 @@ package com.petshop.controller;
 
 import com.petshop.model.AppUser;
 import com.petshop.repository.AppUserRepository;
+import com.petshop.support.ContentSafety;
+import com.petshop.support.UserGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,12 +47,17 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "昵称不能使用手机号");
         }
         final String finalNickname = nickname;
-        return repository.findByNickname(nickname).orElseGet(() -> {
-            AppUser user = new AppUser();
-            user.setNickname(finalNickname);
-            user.setCreatedAt(LocalDateTime.now());
-            return repository.save(user);
+        AppUser user = repository.findByNickname(nickname).orElseGet(() -> {
+            AppUser created = new AppUser();
+            created.setNickname(finalNickname);
+            created.setBlacklisted(false);
+            created.setCreatedAt(LocalDateTime.now());
+            return repository.save(created);
         });
+        if (Boolean.TRUE.equals(user.getBlacklisted())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, safe(user.getBlacklistReason()).isEmpty() ? "账号已被限制，暂不能登录" : user.getBlacklistReason());
+        }
+        return user;
     }
 
     @GetMapping("/exists")
@@ -63,13 +70,33 @@ public class UserController {
     public AppUser updateProfile(@PathVariable Long id, @RequestBody AppUser payload) {
         AppUser user = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        UserGuard.requireActive(repository, user.getNickname(), "维护个人资料");
         String content = safe(payload.getAvatarUrl()) + " " + safe(payload.getBio()) + " " + safe(payload.getCity());
         if (PHONE_PATTERN.matcher(content).find()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "个人资料不能填写手机号，请使用站内私信");
         }
+        ContentSafety.validate(content);
         user.setAvatarUrl(safe(payload.getAvatarUrl()));
         user.setBio(safe(payload.getBio()));
         user.setCity(safe(payload.getCity()));
+        return repository.save(user);
+    }
+
+    @PutMapping("/{id}/blacklist")
+    public AppUser blacklist(@PathVariable Long id, @RequestParam(defaultValue = "账号存在违规行为") String reason) {
+        AppUser user = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        user.setBlacklisted(true);
+        user.setBlacklistReason(safe(reason).isEmpty() ? "账号存在违规行为" : safe(reason));
+        return repository.save(user);
+    }
+
+    @PutMapping("/{id}/unblacklist")
+    public AppUser unblacklist(@PathVariable Long id) {
+        AppUser user = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        user.setBlacklisted(false);
+        user.setBlacklistReason("");
         return repository.save(user);
     }
 

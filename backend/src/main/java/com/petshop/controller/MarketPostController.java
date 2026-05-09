@@ -1,8 +1,10 @@
 package com.petshop.controller;
 
 import com.petshop.model.MarketPost;
+import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.MarketPostRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.UserGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,16 +26,21 @@ import java.util.stream.Collectors;
 @RequestMapping("/posts")
 public class MarketPostController {
     private static final String CONTACT_VALUE = "站内私信";
+    private static final String AUDIT_APPROVED = "审核通过";
+    private static final String AUDIT_REMOVED = "已下架";
 
     private final MarketPostRepository repository;
+    private final AppUserRepository users;
 
-    public MarketPostController(MarketPostRepository repository) {
+    public MarketPostController(MarketPostRepository repository, AppUserRepository users) {
         this.repository = repository;
+        this.users = users;
     }
 
     @GetMapping
     public List<MarketPost> list() {
         return repository.findAll().stream()
+                .filter(post -> !AUDIT_REMOVED.equals(post.getAuditStatus()))
                 .sorted(Comparator.comparing(MarketPost::getCreatedAt).reversed())
                 .collect(Collectors.toList());
     }
@@ -49,6 +56,7 @@ public class MarketPostController {
         validate(post);
         post.setCreatedAt(LocalDateTime.now());
         post.setContact(CONTACT_VALUE);
+        post.setAuditStatus(AUDIT_APPROVED);
         if (isBlank(post.getStatus())) {
             post.setStatus("在售");
         }
@@ -61,6 +69,7 @@ public class MarketPostController {
         if (!safe(post.getAuthor()).equals(author)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能删除自己的帖子");
         }
+        UserGuard.requireActive(users, author, "删除帖子");
         repository.delete(post);
     }
 
@@ -70,10 +79,12 @@ public class MarketPostController {
         if (!safe(existing.getAuthor()).equals(author)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能编辑自己的帖子");
         }
+        UserGuard.requireActive(users, author, "编辑帖子");
         update.setId(existing.getId());
         update.setAuthor(existing.getAuthor());
         update.setCreatedAt(existing.getCreatedAt());
         update.setContact(CONTACT_VALUE);
+        update.setAuditStatus(AUDIT_APPROVED);
         if (isBlank(update.getStatus())) {
             update.setStatus(isBlank(existing.getStatus()) ? "在售" : existing.getStatus());
         }
@@ -85,6 +96,7 @@ public class MarketPostController {
         if (isBlank(post.getAuthor())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再发布");
         }
+        UserGuard.requireActive(users, post.getAuthor(), "发布帖子");
         if (isBlank(post.getCategory())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择宠物分类");
         }

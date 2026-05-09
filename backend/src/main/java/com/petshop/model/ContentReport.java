@@ -24,8 +24,13 @@ public class ContentReport {
     private Long targetId;
     private String reporter;
     private String status;
+    private String handledBy;
     private LocalDateTime createdAt;
+    private LocalDateTime handledAt;
 
     @Column(length = 500)
     private String reason;
+
+    @Column(length = 500)
+    private String handleNote;
 }

@@ -1,0 +1,26 @@
+package com.petshop.support;
+
+import com.petshop.model.AppUser;
+import com.petshop.repository.AppUserRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+public final class UserGuard {
+    private UserGuard() {
+    }
+
+    public static AppUser requireActive(AppUserRepository users, String nickname, String action) {
+        if (nickname == null || nickname.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再" + action);
+        }
+        AppUser user = users.findByNickname(nickname.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户不存在，请重新登录"));
+        if (Boolean.TRUE.equals(user.getBlacklisted())) {
+            String reason = user.getBlacklistReason() == null || user.getBlacklistReason().trim().isEmpty()
+                    ? "账号已被限制"
+                    : user.getBlacklistReason().trim();
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, reason);
+        }
+        return user;
+    }
+}

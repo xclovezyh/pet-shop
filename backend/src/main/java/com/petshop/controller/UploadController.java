@@ -21,21 +21,28 @@ public class UploadController {
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
 
+    @Value("${app.upload-url-prefix:/api/uploads/}")
+    private String uploadUrlPrefix;
+
     @PostMapping
     public Map<String, String> upload(@RequestParam("file") MultipartFile file) throws IOException {
         String originalName = file.getOriginalFilename() == null ? "image" : file.getOriginalFilename();
         String ext = "";
         int dot = originalName.lastIndexOf('.');
         if (dot >= 0) {
-            ext = originalName.substring(dot);
+            ext = originalName.substring(dot).toLowerCase();
         }
 
-        Files.createDirectories(Paths.get(uploadDir));
+        Path uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Files.createDirectories(uploadRoot);
         String fileName = UUID.randomUUID() + ext;
-        Path target = Paths.get(uploadDir).resolve(fileName).toAbsolutePath().normalize();
+        Path target = uploadRoot.resolve(fileName).normalize();
+        if (!target.startsWith(uploadRoot)) {
+            throw new IOException("非法上传路径");
+        }
         file.transferTo(target);
         Map<String, String> response = new HashMap<>();
-        response.put("url", "/api/uploads/" + fileName);
+        response.put("url", uploadUrlPrefix + fileName);
         return response;
     }
 }

@@ -20,6 +20,8 @@ public class AppUser {
     private String nickname;
     private String avatarUrl;
     private String city;
+    private Boolean blacklisted;
+    private String blacklistReason;
     private LocalDateTime createdAt;
 
     @javax.persistence.Column(length = 500)

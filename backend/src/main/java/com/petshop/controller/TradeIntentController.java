@@ -2,9 +2,11 @@ package com.petshop.controller;
 
 import com.petshop.model.MarketPost;
 import com.petshop.model.TradeIntent;
+import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.MarketPostRepository;
 import com.petshop.repository.TradeIntentRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.UserGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,10 +31,12 @@ public class TradeIntentController {
 
     private final TradeIntentRepository intents;
     private final MarketPostRepository posts;
+    private final AppUserRepository users;
 
-    public TradeIntentController(TradeIntentRepository intents, MarketPostRepository posts) {
+    public TradeIntentController(TradeIntentRepository intents, MarketPostRepository posts, AppUserRepository users) {
         this.intents = intents;
         this.posts = posts;
+        this.users = users;
     }
 
     @GetMapping
@@ -114,6 +118,7 @@ public class TradeIntentController {
         if (isBlank(user)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录后再使用交易意向");
         }
+        UserGuard.requireActive(users, user, "使用交易意向");
     }
 
     private boolean isBlank(String value) {
