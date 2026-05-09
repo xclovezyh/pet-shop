@@ -174,5 +174,5 @@ database/initial-data.sql
 ## 注意事项
 
 - 当前登录仍是原型阶段的昵称登录，不是完整认证系统。
-- JPA 建表策略仍使用 `ddl-auto: update`，正式生产建议迁移到 Flyway 或 Liquibase。
+- 项目已接入 Flyway，迁移脚本位于 `backend/src/main/resources/db/migration`；开发环境默认关闭 Flyway 并保留 `ddl-auto: update` 便于兼容旧本地库，生产环境启用 Flyway 并使用 `ddl-auto: validate`。
 - 本地上传文件默认保存在 `backend/uploads`，Docker 部署时挂载到 `uploads` 数据卷。
