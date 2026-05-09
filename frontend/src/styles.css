@@ -489,7 +489,8 @@ h1 {
   color: #596962;
 }
 
-.chips {
+.chips,
+.miniChips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -497,6 +498,7 @@ h1 {
 }
 
 .chips span,
+.miniChips span,
 .status,
 .type {
   background: #e6f2ec;
@@ -505,6 +507,17 @@ h1 {
   font-size: 13px;
   font-weight: 900;
   padding: 5px 10px;
+}
+
+.miniChips {
+  margin-top: 8px;
+}
+
+.miniChips span {
+  background: #f3efe4;
+  color: #6b5632;
+  font-size: 12px;
+  padding: 4px 8px;
 }
 
 .petCard,

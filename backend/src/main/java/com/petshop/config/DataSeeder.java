@@ -48,6 +48,8 @@ public class DataSeeder {
                 pets.save(pet("小龟", "爬宠", "草龟", "2岁", "四川省 成都市 武侯区", "在售", "进食稳定，背甲完整", "安静耐看，适合有温控设备家庭", new BigDecimal("120")));
             }
 
+            enrichPetProfiles(pets);
+
             if (posts.count() == 0) {
                 posts.save(post("想给柯基找同城互换寄养伙伴", "互换", "狗狗", "浙江省 杭州市 西湖区", "工作日偶尔出差，希望找同城稳定互助家庭。"));
                 posts.save(post("英短银渐层找新家", "售卖", "猫咪", "上海市 上海市 浦东新区", "自家猫宝宝，疫苗驱虫记录完整，可预约看猫。"));
@@ -205,8 +207,52 @@ public class DataSeeder {
         pet.setPersonality(personality);
         pet.setPrice(price);
         pet.setOwnerName("平台示例用户");
-        pet.setImageUrl(petImage(category, name));
+        String[] images = petImages(category, name);
+        pet.setImageUrl(firstImage(images));
+        pet.setImageUrls(String.join(",", images));
+        applyPetProfile(pet);
         return pet;
+    }
+
+    private void enrichPetProfiles(PetRepository pets) {
+        pets.findAll().forEach(pet -> {
+            applyPetProfile(pet);
+            pets.save(pet);
+        });
+    }
+
+    private void applyPetProfile(Pet pet) {
+        String category = pet.getCategory();
+        String name = pet.getName();
+        if (isBlank(pet.getOwnerName())) {
+            pet.setOwnerName("平台示例用户");
+        }
+        if (isBlank(pet.getImageUrls())) {
+            String[] images = petImages(category, name);
+            pet.setImageUrl(firstImage(images));
+            pet.setImageUrls(String.join(",", images));
+        }
+        if (isBlank(pet.getGender())) {
+            pet.setGender("狗狗".equals(category) || "鐙楃嫍".equals(category) ? "公" : "母");
+        }
+        if (isBlank(pet.getAgeRange())) {
+            pet.setAgeRange("2宀?".equals(pet.getAge()) ? "成年" : "幼年");
+        }
+        if (pet.getVaccinated() == null) {
+            pet.setVaccinated(!("爬宠".equals(category) || "鐖疇".equals(category)));
+        }
+        if (pet.getDewormed() == null) {
+            pet.setDewormed(true);
+        }
+        if (pet.getNeutered() == null) {
+            pet.setNeutered("猫咪".equals(category) || "鐚挭".equals(category));
+        }
+        if (isBlank(pet.getHealthRecords())) {
+            pet.setHealthRecords(healthRecordsFor(category));
+        }
+        if (isBlank(pet.getCareNotes())) {
+            pet.setCareNotes(careNotesFor(category));
+        }
     }
 
     private MarketPost post(String title, String type, String category, String city, String description) {
@@ -239,6 +285,34 @@ public class DataSeeder {
         moment.setImageUrls(String.join(",", images));
         moment.setCreatedAt(LocalDateTime.now());
         return moment;
+    }
+
+    private String[] petImages(String category, String name) {
+        String first = petImage(category, name);
+        if ("鐙楃嫍".equals(category) || "狗狗".equals(category)) {
+            return new String[]{
+                    first,
+                    "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=900&q=80",
+                    "https://images.unsplash.com/photo-1534361960057-19889db9621e?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        if ("灏忓疇".equals(category) || "小宠".equals(category)) {
+            return new String[]{
+                    first,
+                    "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        if ("楦熺被".equals(category) || "鸟类".equals(category)) {
+            return new String[]{
+                    first,
+                    "https://images.unsplash.com/photo-1522926193341-e9ffd686c60f?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+        return new String[]{
+                first,
+                "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=900&q=80"
+        };
     }
 
     private String petImage(String category, String name) {
@@ -305,5 +379,35 @@ public class DataSeeder {
 
     private String firstImage(String[] images) {
         return images.length == 0 ? "" : images[0];
+    }
+
+    private String healthRecordsFor(String category) {
+        if ("鐖疇".equals(category) || "爬宠".equals(category)) {
+            return "体表完整,进食稳定,温湿度记录正常";
+        }
+        if ("楦熺被".equals(category) || "鸟类".equals(category)) {
+            return "羽毛状态良好,精神状态稳定,已适应手养";
+        }
+        if ("灏忓疇".equals(category) || "小宠".equals(category)) {
+            return "体检正常,饮食稳定,笼舍清洁";
+        }
+        return "疫苗齐全,已驱虫,体检正常";
+    }
+
+    private String careNotesFor(String category) {
+        if ("鐖疇".equals(category) || "爬宠".equals(category)) {
+            return "需要稳定温控和安静环境，建议有基础饲养经验。";
+        }
+        if ("楦熺被".equals(category) || "鸟类".equals(category)) {
+            return "需要固定互动时间，换环境初期请减少惊扰。";
+        }
+        if ("灏忓疇".equals(category) || "小宠".equals(category)) {
+            return "适合安静家庭，注意垫料清洁和少量多次喂食。";
+        }
+        return "适合家庭陪伴，建议继续保持疫苗、驱虫和定期体检。";
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }

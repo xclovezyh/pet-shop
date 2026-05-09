@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import javax.persistence.Column;
 
 @Getter
 @Setter
@@ -25,7 +26,18 @@ public class Pet {
     private String status;
     private BigDecimal price;
     private String imageUrl;
+    @Column(length = 2000)
+    private String imageUrls;
     private String healthInfo;
+    @Column(length = 1000)
+    private String healthRecords;
     private String personality;
     private String ownerName;
+    private String gender;
+    private String ageRange;
+    private Boolean vaccinated;
+    private Boolean dewormed;
+    private Boolean neutered;
+    @Column(length = 600)
+    private String careNotes;
 }

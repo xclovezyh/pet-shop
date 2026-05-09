@@ -45,8 +45,17 @@ type Pet = {
   status: string;
   price: number;
   imageUrl: string;
+  imageUrls?: string;
   healthInfo: string;
+  healthRecords?: string;
   personality: string;
+  ownerName?: string;
+  gender?: string;
+  ageRange?: string;
+  vaccinated?: boolean;
+  dewormed?: boolean;
+  neutered?: boolean;
+  careNotes?: string;
   createdAt?: string;
 };
 type MarketPost = {
@@ -767,17 +776,19 @@ function FilterBar(props: {
 }
 
 function PetCard({ pet, onOpen }: { pet: Pet; onOpen: (pet: Pet) => void }) {
+  const healthTags = petHealthTags(pet).slice(0, 3);
   return (
     <article className="petCard clickable" onClick={() => onOpen(pet)}>
-      {imageBox(pet.imageUrl, pet.name)}
+      {imageBox(primaryImage(pet), pet.name)}
       <div className="petInfo">
         <div className="between"><h3>{pet.name}</h3><span className="status">{pet.status}</span></div>
-        <p className="petBreed">{pet.breed} · {pet.age}</p>
+        <p className="petBreed">{pet.breed} · {pet.gender || '未知'} · {pet.ageRange || pet.age}</p>
         <p className="sub"><MapPin size={15} />{pet.city}</p>
         <p>{pet.personality}</p>
+        {healthTags.length > 0 && <div className="miniChips">{healthTags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
         <div className="between cardFooter">
           <span className="price">{formatPrice(pet.price)}</span>
-          <span className="health"><ShieldCheck size={15} />{pet.healthInfo}</span>
+          <span className="health"><ShieldCheck size={15} />{pet.ownerName || pet.healthInfo}</span>
         </div>
       </div>
     </article>
@@ -1334,7 +1345,7 @@ function DetailModal({ detail, currentUser, favoriteIds, sentIntents, onFavorite
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
-  const images = detail.type === 'pet' ? imageList({ imageUrl: (item as Pet).imageUrl }) : imageList(item as MarketPost | Moment);
+  const images = imageList(item as MarketPost | Moment | Pet);
   const existingIntent = post ? sentIntents.find((intent) => intent.postId === post.id) : undefined;
   return (
     <div className="modalBackdrop" onClick={onClose}>
@@ -1374,11 +1385,16 @@ function DetailModal({ detail, currentUser, favoriteIds, sentIntents, onFavorite
           ['分类', (item as Pet).category],
           ['品种', (item as Pet).breed],
           ['年龄', (item as Pet).age],
+          ['年龄段', (item as Pet).ageRange || '未填写'],
+          ['性别', (item as Pet).gender || '未知'],
           ['地区', (item as Pet).city],
           ['状态', (item as Pet).status],
           ['价格', formatPrice((item as Pet).price)],
           ['健康', (item as Pet).healthInfo],
-          ['性格', (item as Pet).personality]
+          ['健康记录', petHealthTags(item as Pet).join('、') || '未填写'],
+          ['发布者', (item as Pet).ownerName || '平台示例用户'],
+          ['性格', (item as Pet).personality],
+          ['照护说明', (item as Pet).careNotes || '暂无补充说明']
         ]} />}
       </article>
     </div>
@@ -1583,6 +1599,17 @@ function imageList(item: { imageUrl?: string; imageUrls?: string }) {
 
 function primaryImage(item: { imageUrl?: string; imageUrls?: string }) {
   return imageList(item)[0] || '';
+}
+
+function petHealthTags(pet: Pet) {
+  const tags = (pet.healthRecords || pet.healthInfo || '')
+    .split(/[,，、]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  if (pet.vaccinated) tags.push('已疫苗');
+  if (pet.dewormed) tags.push('已驱虫');
+  if (pet.neutered) tags.push('已绝育');
+  return Array.from(new Set(tags));
 }
 
 function validateImage(file: File) {
