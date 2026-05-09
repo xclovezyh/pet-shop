@@ -1,0 +1,48 @@
+services:
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-pet_shop}
+      MYSQL_USER: ${MYSQL_USERNAME:-petshop}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-root-password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_URL: ${MYSQL_URL:-jdbc:mysql://mysql:3306/pet_shop?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+      MYSQL_USERNAME: ${MYSQL_USERNAME:-petshop}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
+      APP_UPLOAD_DIR: ${APP_UPLOAD_DIR:-/app/uploads}
+      APP_UPLOAD_URL_PREFIX: ${APP_UPLOAD_URL_PREFIX:-/api/uploads/}
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  mysql-data:
+  uploads:

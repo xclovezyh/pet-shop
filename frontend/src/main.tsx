@@ -123,6 +123,7 @@ type MomentComment = { id: number; momentId: number; author: string; content: st
 type PostFavorite = { id: number; userNickname: string; postId: number; createdAt: string; post?: MarketPost };
 type TradeIntent = { id: number; postId: number; postTitle: string; requester: string; owner: string; message: string; status: string; createdAt: string; updatedAt: string; post?: MarketPost };
 type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reporter: string; reason: string; status: string; createdAt: string; handledBy?: string; handledAt?: string; handleNote?: string };
+type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
@@ -776,6 +777,8 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
   const [reports, setReports] = React.useState<ContentReport[]>([]);
   const [posts, setPosts] = React.useState<MarketPost[]>([]);
   const [moments, setMoments] = React.useState<Moment[]>([]);
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [regionAreas, setRegionAreas] = React.useState<RegionArea[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [notice, setNotice] = React.useState('');
 
@@ -785,13 +788,17 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
       fetch(`${API_BASE}/users`).then((res) => res.ok ? res.json() : []),
       fetch(`${API_BASE}/reports/admin`).then((res) => res.ok ? res.json() : []),
       fetch(`${API_BASE}/posts/admin`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/moments/admin`).then((res) => res.ok ? res.json() : [])
+      fetch(`${API_BASE}/moments/admin`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/categories`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/reference-data/regions/admin`).then((res) => res.ok ? res.json() : [])
     ])
-      .then(([nextUsers, nextReports, nextPosts, nextMoments]) => {
+      .then(([nextUsers, nextReports, nextPosts, nextMoments, nextCategories, nextRegions]) => {
         setUsers(nextUsers);
         setReports(nextReports);
         setPosts(nextPosts);
         setMoments(nextMoments);
+        setCategories(nextCategories);
+        setRegionAreas(nextRegions);
       })
       .catch(() => setNotice('管理数据加载失败，请确认后端服务已启动。'))
       .finally(() => setLoading(false));
@@ -830,6 +837,48 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
     load();
     onChanged();
   }
+
+  async function saveCategory(category?: Category) {
+    const name = window.prompt('分类名称', category?.name || '');
+    if (!name?.trim()) return;
+    const description = window.prompt('分类描述', category?.description || '') || '';
+    const tags = window.prompt('标签，使用逗号分隔', category?.tags || '') || '';
+    const res = await fetch(`${API_BASE}/categories${category ? `/${category.id}` : ''}`, {
+      method: category ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, tags, imageUrl: '' })
+    });
+    setNotice(res.ok ? '分类已保存' : await readError(res));
+    load();
+  }
+
+  async function deleteCategory(category: Category) {
+    if (!window.confirm(`确认删除分类「${category.name}」吗？`)) return;
+    const res = await fetch(`${API_BASE}/categories/${category.id}`, { method: 'DELETE' });
+    setNotice(res.ok ? '分类已删除' : await readError(res));
+    load();
+  }
+
+  async function saveRegion(level: RegionArea['level'], parentId?: number, region?: RegionArea) {
+    const name = window.prompt(region ? '修改地区名称' : '新增地区名称', region?.name || '');
+    if (!name?.trim()) return;
+    const res = await fetch(`${API_BASE}/reference-data/regions${region ? `/${region.id}` : ''}`, {
+      method: region ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, level, parentId, sortOrder: region?.sortOrder })
+    });
+    setNotice(res.ok ? '地区已保存' : await readError(res));
+    load();
+  }
+
+  async function deleteRegion(region: RegionArea) {
+    if (!window.confirm(`确认删除地区「${region.name}」及其下级地区吗？`)) return;
+    const res = await fetch(`${API_BASE}/reference-data/regions/${region.id}`, { method: 'DELETE' });
+    setNotice(res.ok ? '地区已删除' : await readError(res));
+    load();
+  }
+
+  const provinces = regionAreas.filter((region) => region.level === 'province');
 
   return (
     <section className="page section">
@@ -888,6 +937,33 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
             </article>
           ))}
         </AdminPanel>
+        <AdminPanel title="分类管理">
+          <div className="intentActions"><button type="button" onClick={() => saveCategory()}>新增分类</button></div>
+          {categories.map((category) => (
+            <article className="adminItem" key={category.id}>
+              <div className="between"><strong>{category.name}</strong><span className="auditBadge">{category.tags || '未设置标签'}</span></div>
+              <p>{category.description}</p>
+              <div className="intentActions">
+                <button type="button" onClick={() => saveCategory(category)}>编辑</button>
+                <button type="button" onClick={() => deleteCategory(category)}>删除</button>
+              </div>
+            </article>
+          ))}
+        </AdminPanel>
+        <AdminPanel title="地区库管理">
+          <div className="intentActions"><button type="button" onClick={() => saveRegion('province')}>新增省份</button></div>
+          {provinces.map((province) => (
+            <article className="adminItem" key={province.id}>
+              <div className="between"><strong>{province.name}</strong><span className="auditBadge">省份</span></div>
+              <RegionChildren regions={regionAreas} parent={province} onSave={saveRegion} onDelete={deleteRegion} />
+              <div className="intentActions">
+                <button type="button" onClick={() => saveRegion('city', province.id)}>新增城市</button>
+                <button type="button" onClick={() => saveRegion('province', undefined, province)}>编辑省份</button>
+                <button type="button" onClick={() => deleteRegion(province)}>删除省份</button>
+              </div>
+            </article>
+          ))}
+        </AdminPanel>
       </div>
     </section>
   );
@@ -895,6 +971,27 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
 
 function AdminPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return <div className="adminPanel"><h3>{title}</h3>{children}</div>;
+}
+
+function RegionChildren({ regions, parent, onSave, onDelete }: { regions: RegionArea[]; parent: RegionArea; onSave: (level: RegionArea['level'], parentId?: number, region?: RegionArea) => void; onDelete: (region: RegionArea) => void }) {
+  const children = regions.filter((region) => region.parentId === parent.id);
+  if (!children.length) return <p className="emptyState">暂无下级地区。</p>;
+  return (
+    <div className="regionAdminList">
+      {children.map((region) => (
+        <div className="regionAdminItem" key={region.id}>
+          <strong>{region.name}</strong>
+          <span>{region.level === 'city' ? '城市' : '区县'}</span>
+          {region.level === 'city' && <button type="button" onClick={() => onSave('district', region.id)}>新增区县</button>}
+          <button type="button" onClick={() => onSave(region.level, region.parentId, region)}>编辑</button>
+          <button type="button" onClick={() => onDelete(region)}>删除</button>
+          {region.level === 'city' && <div className="regionDistricts">
+            {regions.filter((item) => item.parentId === region.id).map((district) => <button type="button" key={district.id} onClick={() => onSave('district', region.id, district)}>{district.name}</button>)}
+          </div>}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function FilterBar(props: {
