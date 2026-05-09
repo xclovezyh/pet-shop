@@ -838,6 +838,26 @@ textarea {
   margin: -4px 0 0;
 }
 
+.typeHint {
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 6px;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+}
+
+.typeHint strong {
+  color: #22352d;
+  line-height: 1.2;
+}
+
+.typeHint span {
+  color: #66756d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .imagePreview {
   background: #f7faf8;
   border: 1px solid #dfe7e2;
@@ -886,13 +906,21 @@ textarea {
 }
 
 .formError {
+  align-items: flex-start;
   background: #fff0ef;
   border: 1px solid #f0cbc7;
   border-radius: 6px;
   color: #ad3d32;
+  display: flex;
+  gap: 8px;
   font-weight: 800;
   margin: 0;
   padding: 10px 12px;
+}
+
+.formError svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .likes {
@@ -1555,10 +1583,31 @@ textarea {
   width: min(100%, 620px);
 }
 
+.detailHeader {
+  display: grid;
+  gap: 10px;
+  margin: 0 44px 18px 0;
+}
+
 .detailModal h2 {
   font-size: 26px;
   line-height: 1.2;
-  margin: 0 44px 18px 0;
+  margin: 0;
+}
+
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detailMeta span {
+  background: #eef4f1;
+  border-radius: 999px;
+  color: #37594a;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 5px 10px;
 }
 
 .closeButton {
@@ -1664,9 +1713,39 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .topbar {
+    gap: 12px;
+  }
+
+  .brand {
+    font-size: 19px;
+  }
+
   nav {
     flex-wrap: wrap;
     gap: 12px;
+  }
+
+  nav button {
+    font-size: 14px;
+  }
+
+  .hero {
+    gap: 28px;
+    min-height: 0;
+    padding: 48px 16px 28px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .section {
+    padding: 30px 16px;
   }
 
   .categoryGrid,
@@ -1688,6 +1767,19 @@ textarea {
     align-items: stretch;
     display: grid;
     grid-template-columns: auto 1fr auto;
+  }
+
+  .detailModal {
+    max-height: calc(100vh - 24px);
+    padding: 18px;
+  }
+
+  .detailHeader {
+    margin-right: 42px;
+  }
+
+  .detailModal h2 {
+    font-size: 22px;
   }
 
   .detailRows {
