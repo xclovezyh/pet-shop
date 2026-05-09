@@ -48,6 +48,13 @@ public class MomentController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/admin")
+    public List<Moment> adminList() {
+        return repository.findAll().stream()
+                .sorted(Comparator.comparing(Moment::getCreatedAt).reversed())
+                .collect(Collectors.toList());
+    }
+
     @GetMapping("/{id}")
     public Moment detail(@PathVariable Long id) {
         return repository.findById(id)
@@ -117,6 +124,16 @@ public class MomentController {
         update.setAuditStatus(AUDIT_APPROVED);
         validate(update);
         return repository.save(update);
+    }
+
+    @PutMapping("/{id}/audit")
+    public Moment audit(@PathVariable Long id, @RequestParam String status) {
+        if (!AUDIT_APPROVED.equals(status) && !AUDIT_REMOVED.equals(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的审核状态");
+        }
+        Moment moment = detail(id);
+        moment.setAuditStatus(status);
+        return repository.save(moment);
     }
 
     private void validate(Moment moment) {

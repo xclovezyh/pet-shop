@@ -90,8 +90,9 @@ type Moment = {
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type PostFavorite = { id: number; userNickname: string; postId: number; createdAt: string; post?: MarketPost };
 type TradeIntent = { id: number; postId: number; postTitle: string; requester: string; owner: string; message: string; status: string; createdAt: string; updatedAt: string; post?: MarketPost };
+type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reporter: string; reason: string; status: string; createdAt: string; handledBy?: string; handledAt?: string; handleNote?: string };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
-type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites';
+type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
 type ReferenceData = {
@@ -383,7 +384,7 @@ function App() {
           <button type="button" className={page === 'market' ? 'active' : ''} onClick={() => setPage('market')}>市场</button>
           <button type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
         </nav>
-        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onLogin={handleLogin} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onLogout={logout} />
+        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onLogin={handleLogin} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onAdmin={() => setPage('admin')} onLogout={logout} />
       </header>
 
       {page === 'home' && (
@@ -437,6 +438,7 @@ function App() {
       {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} favoriteCount={favoritePosts.length} onSaved={handleProfileSaved} onFavorites={() => setPage('favorites')} onMessages={() => setPage('messages')} />}
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
       {page === 'favorites' && <FavoritesPage currentUser={currentUser} posts={favoritePosts} favoriteIds={favoriteIds} onOpen={(post) => setDetail({ type: 'post', item: post })} onToggleFavorite={toggleFavorite} />}
+      {page === 'admin' && <AdminPage currentUser={currentUser} onOpen={setDetail} onChanged={reloadFeeds} />}
 
       {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} sentIntents={sentIntents} onFavorite={toggleFavorite} onReport={reportContent} onMessage={startMessage} onTradeIntent={submitTradeIntent} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
@@ -444,7 +446,7 @@ function App() {
   );
 }
 
-function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMessages, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onLogin: (user: UserProfile) => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onLogout: () => void }) {
+function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMessages, onAdmin, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onLogin: (user: UserProfile) => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onAdmin: () => void; onLogout: () => void }) {
   const [name, setName] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -486,6 +488,7 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
           <button type="button" onClick={() => { setOpen(false); onMine(); }}>我的发布</button>
           <button type="button" onClick={() => { setOpen(false); onProfile(); }}>个人主页</button>
           <button type="button" onClick={() => { setOpen(false); onMessages(); }}>站内私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
+          <button type="button" onClick={() => { setOpen(false); onAdmin(); }}>管理后台</button>
           <button type="button" className="logoutItem" onClick={() => { setOpen(false); onLogout(); }}>退出登录</button>
         </div>}
       </div>
@@ -734,6 +737,132 @@ function ProfilePage(props: { currentUser: UserProfile | null; referenceData: Re
       <ProfilePanel {...props} />
     </section>
   );
+}
+
+function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfile | null; onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void; onChanged: () => void }) {
+  const [users, setUsers] = React.useState<UserProfile[]>([]);
+  const [reports, setReports] = React.useState<ContentReport[]>([]);
+  const [posts, setPosts] = React.useState<MarketPost[]>([]);
+  const [moments, setMoments] = React.useState<Moment[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [notice, setNotice] = React.useState('');
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`${API_BASE}/users`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/reports/admin`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/posts/admin`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/moments/admin`).then((res) => res.ok ? res.json() : [])
+    ])
+      .then(([nextUsers, nextReports, nextPosts, nextMoments]) => {
+        setUsers(nextUsers);
+        setReports(nextReports);
+        setPosts(nextPosts);
+        setMoments(nextMoments);
+      })
+      .catch(() => setNotice('管理数据加载失败，请确认后端服务已启动。'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  React.useEffect(load, [load]);
+
+  if (!currentUser) {
+    return <section className="page section"><EmptyState title="登录后进入管理后台" helper="当前原型使用登录用户进入管理视图，后续可替换为真实管理员权限。" /></section>;
+  }
+  const operator = currentUser.nickname;
+
+  async function updateUser(user: UserProfile, blocked: boolean) {
+    const reason = encodeURIComponent(blocked ? '管理员处理违规行为' : '');
+    const res = await fetch(`${API_BASE}/users/${user.id}/${blocked ? 'blacklist' : 'unblacklist'}${blocked ? `?reason=${reason}` : ''}`, { method: 'PUT' });
+    setNotice(res.ok ? (blocked ? '用户已拉黑' : '用户已解除限制') : await readError(res));
+    load();
+  }
+
+  async function audit(kind: 'posts' | 'moments', id: number, status: string) {
+    const res = await fetch(`${API_BASE}/${kind}/${id}/audit?status=${encodeURIComponent(status)}`, { method: 'PUT' });
+    setNotice(res.ok ? `内容已${status}` : await readError(res));
+    load();
+    onChanged();
+  }
+
+  async function handleReport(report: ContentReport, action: string) {
+    const params = new URLSearchParams({
+      operator,
+      status: '已处理',
+      action,
+      note: action.includes('Block') ? '举报处理后限制作者' : '举报处理完成'
+    });
+    const res = await fetch(`${API_BASE}/reports/${report.id}/handle?${params.toString()}`, { method: 'PUT' });
+    setNotice(res.ok ? '举报已处理' : await readError(res));
+    load();
+    onChanged();
+  }
+
+  return (
+    <section className="page section">
+      <SectionTitle icon={<ShieldCheck />} title="管理后台" helper="集中处理举报、审核内容和限制违规用户" />
+      {loading && <LoadingState label="正在加载管理数据" />}
+      {notice && <p className="formNote adminNotice">{notice}</p>}
+      <div className="adminGrid">
+        <AdminPanel title="举报处理">
+          {reports.length ? reports.map((report) => (
+            <article className="adminItem" key={report.id}>
+              <div className="between"><strong>{report.targetType === 'post' ? '交易帖举报' : '日常举报'} #{report.targetId}</strong><span className={`intentStatus ${report.status === '待处理' ? 'pending' : 'accepted'}`}>{report.status}</span></div>
+              <p>{report.reason}</p>
+              <div className="intentMeta"><span>举报人 {report.reporter}</span><span>{formatTime(report.createdAt)}</span></div>
+              <div className="intentActions">
+                <button type="button" onClick={() => handleReport(report, 'removeTarget')}>下架内容</button>
+                <button type="button" onClick={() => handleReport(report, 'removeAndBlockAuthor')}>下架并拉黑作者</button>
+                <button type="button" onClick={() => handleReport(report, 'none')}>仅标记处理</button>
+              </div>
+            </article>
+          )) : <p className="emptyState">暂无举报记录。</p>}
+        </AdminPanel>
+        <AdminPanel title="用户管理">
+          {users.map((user) => (
+            <article className="adminItem compact" key={user.id}>
+              <div><strong>{user.nickname}</strong><p>{user.city || '未设置城市'} · {user.bio || '暂无简介'}</p></div>
+              <span className={user.blacklisted ? 'auditBadge removed' : 'auditBadge'}>{user.blacklisted ? '已限制' : '正常'}</span>
+              <button type="button" onClick={() => updateUser(user, !user.blacklisted)}>{user.blacklisted ? '解除限制' : '拉黑'}</button>
+            </article>
+          ))}
+        </AdminPanel>
+        <AdminPanel title="帖子审核">
+          {posts.map((post) => (
+            <article className="adminItem" key={post.id}>
+              <div className="between"><strong>{post.title}</strong><AuditBadge value={post.auditStatus} /></div>
+              <p>{post.description}</p>
+              <div className="intentMeta"><span>{post.author}</span><span>{post.category}</span><span>{formatTime(post.createdAt || '')}</span></div>
+              <div className="intentActions">
+                <button type="button" onClick={() => onOpen({ type: 'post', item: post })}>查看</button>
+                <button type="button" onClick={() => audit('posts', post.id, '审核通过')}>恢复展示</button>
+                <button type="button" onClick={() => audit('posts', post.id, '已下架')}>下架</button>
+              </div>
+            </article>
+          ))}
+        </AdminPanel>
+        <AdminPanel title="日常审核">
+          {moments.map((moment) => (
+            <article className="adminItem" key={moment.id}>
+              <div className="between"><strong>{moment.petName} 的日常</strong><AuditBadge value={moment.auditStatus} /></div>
+              <p>{moment.content}</p>
+              <div className="intentMeta"><span>{moment.author}</span><span>{moment.category || '日常'}</span><span>{formatTime(moment.createdAt || '')}</span></div>
+              <div className="intentActions">
+                <button type="button" onClick={() => onOpen({ type: 'moment', item: moment })}>查看</button>
+                <button type="button" onClick={() => audit('moments', moment.id, '审核通过')}>恢复展示</button>
+                <button type="button" onClick={() => audit('moments', moment.id, '已下架')}>下架</button>
+              </div>
+            </article>
+          ))}
+        </AdminPanel>
+      </div>
+    </section>
+  );
+}
+
+function AdminPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="adminPanel"><h3>{title}</h3>{children}</div>;
 }
 
 function FilterBar(props: {

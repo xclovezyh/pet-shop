@@ -1252,6 +1252,61 @@ textarea {
   font-weight: 800;
 }
 
+.adminNotice {
+  margin-bottom: 16px;
+}
+
+.adminGrid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adminPanel {
+  background: #fff;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(32, 39, 36, 0.06);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 18px;
+}
+
+.adminPanel h3 {
+  margin: 0;
+}
+
+.adminItem {
+  background: #f7faf8;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.adminItem.compact {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.adminItem p {
+  color: #53635b;
+  margin: 0;
+}
+
+.adminItem button {
+  background: #19513d;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
 .detailActions {
   display: flex;
   flex-wrap: wrap;
@@ -1592,6 +1647,7 @@ textarea {
   .compactGrid.categoryGrid,
   .compactGrid.petGrid,
   .momentGrid,
+  .adminGrid,
   .intentBoard,
   .myColumns,
   .quickFilters {
@@ -1618,6 +1674,7 @@ textarea {
   .compactGrid.categoryGrid,
   .compactGrid.petGrid,
   .momentGrid,
+  .adminGrid,
   .regionGrid,
   .quickFilters,
   .dashboardGrid,
@@ -1643,6 +1700,10 @@ textarea {
   }
 
   .previewSplit .momentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .adminItem.compact {
     grid-template-columns: 1fr;
   }
 }

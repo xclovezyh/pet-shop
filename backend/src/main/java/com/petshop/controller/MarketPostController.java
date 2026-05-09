@@ -45,6 +45,13 @@ public class MarketPostController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/admin")
+    public List<MarketPost> adminList() {
+        return repository.findAll().stream()
+                .sorted(Comparator.comparing(MarketPost::getCreatedAt).reversed())
+                .collect(Collectors.toList());
+    }
+
     @GetMapping("/{id}")
     public MarketPost detail(@PathVariable Long id) {
         return repository.findById(id)
@@ -90,6 +97,16 @@ public class MarketPostController {
         }
         validate(update);
         return repository.save(update);
+    }
+
+    @PutMapping("/{id}/audit")
+    public MarketPost audit(@PathVariable Long id, @RequestParam String status) {
+        if (!AUDIT_APPROVED.equals(status) && !AUDIT_REMOVED.equals(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的审核状态");
+        }
+        MarketPost post = detail(id);
+        post.setAuditStatus(status);
+        return repository.save(post);
     }
 
     private void validate(MarketPost post) {
