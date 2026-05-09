@@ -849,6 +849,11 @@ h1 {
   color: #a13f32;
 }
 
+.auditBadge.accepted {
+  background: #e0f1e8;
+  color: #19513d;
+}
+
 .composer {
   padding: 18px;
   position: sticky;

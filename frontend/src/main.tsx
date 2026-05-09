@@ -543,7 +543,6 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
   const [phone, setPhone] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [code, setCode] = React.useState('');
-  const [adminCode, setAdminCode] = React.useState('');
   const [notice, setNotice] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -582,8 +581,8 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
       const payload = mode === 'register'
         ? { username, nickname, phone, password, code }
         : mode === 'sms'
-          ? { phone, code, adminCode }
-          : { account, password, adminCode };
+          ? { phone, code }
+          : { account, password };
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -634,7 +633,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
             <>
               <label>用户名或手机号<input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
               <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入密码" /></label>
-              <p className="formNote">超级管理员首次登录请使用配置的管理员账号，填写管理员口令后会自动初始化。</p>
+              <p className="formNote">超级管理员账号由系统预置，请使用配置的账号和密码登录。</p>
             </>
           )}
           {mode === 'sms' && (
@@ -658,7 +657,6 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
               <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
             </>
           )}
-          {mode !== 'register' && <label>管理员口令<input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} type="password" placeholder="普通用户无需填写" /></label>}
           {error && <p className="formError">{error}</p>}
           {notice && <p className="formNote">{notice}</p>}
           <button type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : '登录'}</button>
@@ -933,6 +931,12 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
     load();
   }
 
+  async function updateRole(user: UserProfile, role: 'USER' | 'SUPER_ADMIN') {
+    const res = await fetch(`${API_BASE}/users/${user.id}/role?admin=${encodeURIComponent(operator)}&role=${encodeURIComponent(role)}`, { method: 'PUT' });
+    setNotice(res.ok ? (role === 'SUPER_ADMIN' ? '已设为管理员' : '已取消管理员权限') : await readError(res));
+    load();
+  }
+
   async function audit(kind: 'posts' | 'moments', id: number, status: string) {
     const res = await fetch(`${API_BASE}/${kind}/${id}/audit?admin=${encodeURIComponent(operator)}&status=${encodeURIComponent(status)}`, { method: 'PUT' });
     setNotice(res.ok ? `内容已${status}` : await readError(res));
@@ -1026,9 +1030,10 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
         {tab === 'users' && <AdminPanel title="用户管理">
           {users.map((user) => (
             <article className="adminItem compact" key={user.id}>
-              <div><strong>{user.nickname}</strong><p>{user.city || '未设置城市'} · {user.bio || '暂无简介'}</p></div>
-              <span className={user.blacklisted ? 'auditBadge removed' : 'auditBadge'}>{user.blacklisted ? '已限制' : '正常'}</span>
-              <button type="button" onClick={() => updateUser(user, !user.blacklisted)}>{user.blacklisted ? '解除限制' : '拉黑'}</button>
+              <div><strong>{user.nickname}</strong><p>{user.username ? `用户名 ${user.username}` : '未设置用户名'} · {user.city || '未设置城市'}</p></div>
+              <span className={isSuperAdmin(user) ? 'auditBadge accepted' : user.blacklisted ? 'auditBadge removed' : 'auditBadge'}>{isSuperAdmin(user) ? '管理员' : user.blacklisted ? '已限制' : '普通用户'}</span>
+              <button type="button" onClick={() => updateUser(user, !user.blacklisted)} disabled={isSuperAdmin(user)}>{user.blacklisted ? '解除限制' : '拉黑'}</button>
+              <button type="button" onClick={() => updateRole(user, isSuperAdmin(user) ? 'USER' : 'SUPER_ADMIN')} disabled={user.nickname === operator}>{isSuperAdmin(user) ? '取消管理员' : '设为管理员'}</button>
             </article>
           ))}
         </AdminPanel>}

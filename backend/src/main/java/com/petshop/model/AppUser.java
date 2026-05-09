@@ -1,5 +1,6 @@
 package com.petshop.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,8 +26,10 @@ public class AppUser {
     /** 登录手机号。 */
     private String phone;
     /** BCrypt 密码哈希。 */
+    @JsonIgnore
     private String passwordHash;
     /** 预留密码盐字段，BCrypt 已内置盐。 */
+    @JsonIgnore
     private String passwordSalt;
     /** 用户角色：USER 普通用户，SUPER_ADMIN 超级管理员。 */
     private String role;

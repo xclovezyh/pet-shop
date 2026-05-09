@@ -110,15 +110,15 @@ http://localhost:5173/index.html
 默认开发配置：
 
 ```text
-管理员昵称：superadmin
-管理员口令：change-me-admin-code
+管理员账号：superadmin
+管理员密码：change-me-admin-password
 ```
 
-超级管理员不走前台普通注册。首次使用时在“密码登录”里填写管理员昵称、准备使用的密码和管理员口令，系统会自动初始化 `SUPER_ADMIN` 账号。之后仍使用该账号从密码登录进入管理后台。生产环境必须通过环境变量修改：
+超级管理员不走前台普通注册。应用启动时会根据配置在数据库中预置 `SUPER_ADMIN` 账号，登录时使用“密码登录”。后续新增管理员必须由已有超级管理员进入管理后台，在“用户管理”中授权。生产环境必须通过环境变量修改：
 
 ```powershell
-$env:APP_ADMIN_NICKNAMES="your-admin-name"
-$env:APP_ADMIN_CODE="your-strong-admin-code"
+$env:APP_ADMIN_USERNAMES="your-admin-name"
+$env:APP_ADMIN_PASSWORD="your-strong-admin-password"
 ```
 
 Docker 部署时可在 `.env` 中配置同名变量。

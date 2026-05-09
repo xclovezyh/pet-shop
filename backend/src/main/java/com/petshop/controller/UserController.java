@@ -35,16 +35,13 @@ public class UserController {
     private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final AppUserRepository repository;
-    private final List<String> adminNicknames;
-    private final String adminCode;
+    private final List<String> adminUsernames;
     private final Map<String, VerificationCode> verificationCodes = new ConcurrentHashMap<>();
 
     public UserController(AppUserRepository repository,
-                          @Value("${app.admin-nicknames:superadmin}") String adminNicknames,
-                          @Value("${app.admin-code:change-me-admin-code}") String adminCode) {
+                          @Value("${app.admin-usernames:${app.admin-nicknames:superadmin}}") String adminUsernames) {
         this.repository = repository;
-        this.adminNicknames = Arrays.asList(adminNicknames.split(","));
-        this.adminCode = adminCode;
+        this.adminUsernames = Arrays.asList(adminUsernames.split(","));
     }
 
     @GetMapping
@@ -78,8 +75,8 @@ public class UserController {
         if (PHONE_PATTERN.matcher(nickname).find()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "昵称不能使用手机号");
         }
-        if (isAdminNickname(nickname) || isAdminNickname(username)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "超级管理员账号不能在前台注册，请使用密码登录并填写管理员口令完成初始化");
+        if (isConfiguredAdmin(nickname) || isConfiguredAdmin(username)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "超级管理员账号由系统预置，不能在前台注册");
         }
         ContentSafety.validate(nickname);
         verifyCode(phone, payload.get("code"));
@@ -110,11 +107,10 @@ public class UserController {
         }
         AppUser user = repository.findByUsername(account)
                 .orElseGet(() -> repository.findByPhone(account)
-                        .orElseGet(() -> createAdminOnFirstLogin(account, password, payload.get("adminCode"))));
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误")));
         if (isBlank(user.getPasswordHash()) || !PASSWORD_ENCODER.matches(password, user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
         }
-        maybePromoteAdmin(user, payload.get("adminCode"));
         return finishLogin(user);
     }
 
@@ -124,7 +120,6 @@ public class UserController {
         verifyCode(phone, payload.get("code"));
         AppUser user = repository.findByPhone(phone)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "手机号尚未注册，请先注册账号"));
-        maybePromoteAdmin(user, payload.get("adminCode"));
         return finishLogin(user);
     }
 
@@ -148,7 +143,6 @@ public class UserController {
             created.setCreatedAt(LocalDateTime.now());
             return repository.save(created);
         });
-        maybePromoteAdmin(user, payload.get("adminCode"));
         return finishLogin(user);
     }
 
@@ -197,34 +191,19 @@ public class UserController {
         return repository.save(user);
     }
 
-    private AppUser createAdminOnFirstLogin(String account, String password, String suppliedAdminCode) {
-        if (!isAdminNickname(account)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
+    @PutMapping("/{id}/role")
+    public AppUser updateRole(@PathVariable Long id, @RequestParam String admin, @RequestParam String role) {
+        UserGuard.requireSuperAdmin(repository, admin);
+        AppUser user = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        if (!ROLE_USER.equals(role) && !UserGuard.ROLE_SUPER_ADMIN.equals(role)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的用户角色");
         }
-        if (!adminCode.equals(safe(suppliedAdminCode))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "管理员账号需要填写正确的管理员口令");
+        if (admin.equals(user.getNickname()) && !UserGuard.ROLE_SUPER_ADMIN.equals(role)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能取消当前登录管理员自己的权限");
         }
-        AppUser user = new AppUser();
-        user.setUsername(account);
-        user.setNickname(account);
-        user.setRole(UserGuard.ROLE_SUPER_ADMIN);
-        user.setBlacklisted(false);
-        user.setCreatedAt(LocalDateTime.now());
-        setPassword(user, password);
+        user.setRole(role);
         return repository.save(user);
-    }
-
-    private void maybePromoteAdmin(AppUser user, String suppliedAdminCode) {
-        if (!isAdminNickname(user.getNickname())) {
-            if (isBlank(user.getRole())) {
-                user.setRole(ROLE_USER);
-            }
-            return;
-        }
-        if (!adminCode.equals(safe(suppliedAdminCode))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "管理员账号需要填写正确的管理员口令");
-        }
-        user.setRole(UserGuard.ROLE_SUPER_ADMIN);
     }
 
     private AppUser finishLogin(AppUser user) {
@@ -275,11 +254,11 @@ public class UserController {
         return password;
     }
 
-    private boolean isAdminNickname(String nickname) {
-        return adminNicknames.stream()
+    private boolean isConfiguredAdmin(String username) {
+        return adminUsernames.stream()
                 .map(String::trim)
                 .filter(value -> !value.isEmpty())
-                .anyMatch(value -> value.equals(nickname));
+                .anyMatch(value -> value.equals(username));
     }
 
     private boolean isBlank(String value) {
