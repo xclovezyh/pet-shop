@@ -16,12 +16,17 @@ import java.time.LocalDateTime;
 public class MomentComment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** 评论ID。 */
     private Long id;
 
+    /** 所属动态ID。 */
     private Long momentId;
+    /** 评论人昵称。 */
     private String author;
+    /** 评论时间。 */
     private LocalDateTime createdAt;
 
+    /** 评论内容。 */
     @Column(length = 500)
     private String content;
 }

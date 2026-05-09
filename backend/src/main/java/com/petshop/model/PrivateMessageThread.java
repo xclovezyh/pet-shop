@@ -20,21 +20,31 @@ import java.util.List;
 public class PrivateMessageThread {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** 会话ID。 */
     private Long id;
 
+    /** 关联交易帖ID。 */
     private Long postId;
+    /** 关联交易帖标题。 */
     private String postTitle;
+    /** 发起人昵称。 */
     private String starter;
+    /** 接收人昵称。 */
     private String recipient;
+    /** 会话创建时间。 */
     private LocalDateTime createdAt;
+    /** 最近消息时间。 */
     private LocalDateTime updatedAt;
 
+    /** 当前登录用户视角下的对方昵称，不持久化。 */
     @Transient
     private String peer;
 
+    /** 当前登录用户未读消息数，不持久化。 */
     @Transient
     private Long unreadCount = 0L;
 
+    /** 会话消息列表，不持久化。 */
     @Transient
     private List<PrivateMessage> messages = new ArrayList<>();
 }

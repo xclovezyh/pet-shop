@@ -18,13 +18,19 @@ import java.time.LocalDateTime;
 public class PrivateMessage {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** 消息ID。 */
     private Long id;
 
+    /** 所属会话ID。 */
     private Long threadId;
+    /** 发送人昵称。 */
     private String sender;
+    /** 接收方是否已读。 */
     private Boolean readByRecipient;
+    /** 发送时间。 */
     private LocalDateTime createdAt;
 
+    /** 消息内容。 */
     @Column(length = 1000)
     private String content;
 }

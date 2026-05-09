@@ -20,15 +20,20 @@ import java.time.LocalDateTime;
 public class PostFavorite {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** 收藏ID。 */
     private Long id;
 
+    /** 收藏人昵称。 */
     @Column(name = "user_nickname", nullable = false)
     private String userNickname;
 
+    /** 交易帖ID。 */
     @Column(name = "post_id", nullable = false)
     private Long postId;
+    /** 收藏时间。 */
     private LocalDateTime createdAt;
 
+    /** 接口返回时附带的交易帖详情，不持久化。 */
     @Transient
     private MarketPost post;
 }
