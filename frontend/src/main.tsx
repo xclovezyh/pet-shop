@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   Camera,
+  CheckCircle2,
+  Clock3,
   Flag,
   Heart,
   Lock,
@@ -76,6 +78,7 @@ type Moment = {
 };
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type PostFavorite = { id: number; userNickname: string; postId: number; createdAt: string; post?: MarketPost };
+type TradeIntent = { id: number; postId: number; postTitle: string; requester: string; owner: string; message: string; status: string; createdAt: string; updatedAt: string; post?: MarketPost };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
@@ -165,6 +168,8 @@ function App() {
   const [editing, setEditing] = React.useState<{ type: 'post' | 'moment'; item: MarketPost | Moment } | null>(null);
   const [threads, setThreads] = React.useState<MessageThread[]>([]);
   const [favoritePosts, setFavoritePosts] = React.useState<MarketPost[]>([]);
+  const [sentIntents, setSentIntents] = React.useState<TradeIntent[]>([]);
+  const [receivedIntents, setReceivedIntents] = React.useState<TradeIntent[]>([]);
   const availableCategories = categories.data.map((category) => category.name);
   const availableCities = cityOptions(referenceData.data.regions.length ? referenceData.data.regions : fallbackRegions);
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
@@ -236,6 +241,29 @@ function App() {
 
   React.useEffect(loadFavorites, [loadFavorites]);
 
+  const loadTradeIntents = React.useCallback(() => {
+    if (!currentUser) {
+      setSentIntents([]);
+      setReceivedIntents([]);
+      return;
+    }
+    const user = encodeURIComponent(currentUser.nickname);
+    Promise.all([
+      fetch(`${API_BASE}/trade-intents?user=${user}&role=requester`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/trade-intents?user=${user}&role=owner`).then((res) => res.ok ? res.json() : [])
+    ])
+      .then(([sent, received]) => {
+        setSentIntents(sent);
+        setReceivedIntents(received);
+      })
+      .catch(() => {
+        setSentIntents([]);
+        setReceivedIntents([]);
+      });
+  }, [currentUser]);
+
+  React.useEffect(loadTradeIntents, [loadTradeIntents]);
+
   const reloadFeeds = () => {
     posts.reload();
     moments.reload();
@@ -296,6 +324,34 @@ function App() {
       body: JSON.stringify({ targetType: type, targetId: id, reporter: currentUser.nickname, reason: text })
     });
     alert(res.ok ? '举报已提交，等待处理。' : await readError(res));
+  }
+
+  async function submitTradeIntent(post: MarketPost, message: string) {
+    if (!currentUser) {
+      alert('请先登录后再提交交易意向。');
+      return false;
+    }
+    const res = await fetch(`${API_BASE}/trade-intents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: post.id, requester: currentUser.nickname, message })
+    });
+    if (!res.ok) {
+      alert(await readError(res));
+      return false;
+    }
+    loadTradeIntents();
+    return true;
+  }
+
+  async function updateTradeIntent(intent: TradeIntent, status: string) {
+    if (!currentUser) return;
+    const res = await fetch(`${API_BASE}/trade-intents/${intent.id}/status?user=${encodeURIComponent(currentUser.nickname)}&status=${encodeURIComponent(status)}`, { method: 'PUT' });
+    if (!res.ok) {
+      alert(await readError(res));
+      return;
+    }
+    loadTradeIntents();
   }
 
   const favoriteIds = new Set(favoritePosts.map((post) => post.id));
@@ -361,12 +417,12 @@ function App() {
         />
       )}
       {page === 'moments' && <MomentsPage loading={moments.loading} moments={filteredMoments} onOpen={(moment) => setDetail({ type: 'moment', item: moment })} />}
-      {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} />}
+      {page === 'mine' && <MinePage currentUser={currentUser} posts={posts.data} moments={moments.data} sentIntents={sentIntents} receivedIntents={receivedIntents} onOpen={setDetail} onEdit={setEditing} onChanged={reloadFeeds} onIntentStatus={updateTradeIntent} />}
       {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} favoriteCount={favoritePosts.length} onSaved={handleProfileSaved} onFavorites={() => setPage('favorites')} onMessages={() => setPage('messages')} />}
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
       {page === 'favorites' && <FavoritesPage currentUser={currentUser} posts={favoritePosts} favoriteIds={favoriteIds} onOpen={(post) => setDetail({ type: 'post', item: post })} onToggleFavorite={toggleFavorite} />}
 
-      {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} onFavorite={toggleFavorite} onReport={reportContent} onMessage={startMessage} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} sentIntents={sentIntents} onFavorite={toggleFavorite} onReport={reportContent} onMessage={startMessage} onTradeIntent={submitTradeIntent} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
       {editing && <EditModal detail={editing} categories={categories.data} referenceData={referenceData.data} currentUser={currentUser} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reloadFeeds(); }} />}
     </main>
   );
@@ -631,9 +687,12 @@ function MinePage(props: {
   currentUser: UserProfile | null;
   posts: MarketPost[];
   moments: Moment[];
+  sentIntents: TradeIntent[];
+  receivedIntents: TradeIntent[];
   onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void;
   onEdit: (detail: { type: 'post' | 'moment'; item: MarketPost | Moment }) => void;
   onChanged: () => void;
+  onIntentStatus: (intent: TradeIntent, status: string) => void;
 }) {
   return (
     <section className="page section">
@@ -771,9 +830,12 @@ function MyPanel(props: {
   currentUser: UserProfile | null;
   posts: MarketPost[];
   moments: Moment[];
+  sentIntents: TradeIntent[];
+  receivedIntents: TradeIntent[];
   onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void;
   onEdit: (detail: { type: 'post' | 'moment'; item: MarketPost | Moment }) => void;
   onChanged: () => void;
+  onIntentStatus: (intent: TradeIntent, status: string) => void;
 }) {
   if (!props.currentUser) return <div className="myPanel emptyState">登录后，这里会显示你发布的交易帖和日常。</div>;
   const myPosts = props.posts.filter((post) => post.author === props.currentUser!.nickname);
@@ -800,6 +862,8 @@ function MyPanel(props: {
   return (
     <div className="myPanel">
       <div className="mySummary">
+        <div><strong>{props.receivedIntents.length}</strong><span>收到的意向</span></div>
+        <div><strong>{props.sentIntents.length}</strong><span>我的意向</span></div>
         <div><strong>{myPosts.length}</strong><span>我的帖子</span></div>
         <div><strong>{myMoments.length}</strong><span>我的日常</span></div>
       </div>
@@ -826,7 +890,57 @@ function MyPanel(props: {
           )) : <p className="emptyState">还没有发布日常。</p>}
         </div>
       </div>
+      <TradeIntentPanel
+        sentIntents={props.sentIntents}
+        receivedIntents={props.receivedIntents}
+        onOpenPost={(post) => props.onOpen({ type: 'post', item: post })}
+        onIntentStatus={props.onIntentStatus}
+      />
     </div>
+  );
+}
+
+function TradeIntentPanel({ sentIntents, receivedIntents, onOpenPost, onIntentStatus }: { sentIntents: TradeIntent[]; receivedIntents: TradeIntent[]; onOpenPost: (post: MarketPost) => void; onIntentStatus: (intent: TradeIntent, status: string) => void }) {
+  return (
+    <div className="intentBoard">
+      <div>
+        <h3>收到的交易意向</h3>
+        {receivedIntents.length ? receivedIntents.map((intent) => (
+          <IntentCard key={intent.id} intent={intent} mode="received" onOpenPost={onOpenPost} onIntentStatus={onIntentStatus} />
+        )) : <p className="emptyState">还没有买家提交意向。</p>}
+      </div>
+      <div>
+        <h3>我提交的意向</h3>
+        {sentIntents.length ? sentIntents.map((intent) => (
+          <IntentCard key={intent.id} intent={intent} mode="sent" onOpenPost={onOpenPost} onIntentStatus={onIntentStatus} />
+        )) : <p className="emptyState">还没有提交过交易意向。</p>}
+      </div>
+    </div>
+  );
+}
+
+function IntentCard({ intent, mode, onOpenPost, onIntentStatus }: { intent: TradeIntent; mode: 'sent' | 'received'; onOpenPost: (post: MarketPost) => void; onIntentStatus: (intent: TradeIntent, status: string) => void }) {
+  const isPending = intent.status === '待处理';
+  return (
+    <article className="intentCard">
+      <div className="between">
+        <strong>{intent.postTitle}</strong>
+        <span className={`intentStatus ${statusClass(intent.status)}`}>{intent.status}</span>
+      </div>
+      <p>{intent.message}</p>
+      <div className="intentMeta">
+        <span>{mode === 'received' ? `来自 ${intent.requester}` : `发布者 ${intent.owner}`}</span>
+        <span>{formatTime(intent.updatedAt || intent.createdAt)}</span>
+      </div>
+      <div className="intentActions">
+        {intent.post && <button type="button" onClick={() => onOpenPost(intent.post!)}>查看帖子</button>}
+        {mode === 'received' && isPending && <>
+          <button type="button" onClick={() => onIntentStatus(intent, '已同意')}><CheckCircle2 size={15} />同意</button>
+          <button type="button" onClick={() => onIntentStatus(intent, '已拒绝')}>拒绝</button>
+        </>}
+        {mode === 'sent' && isPending && <button type="button" onClick={() => onIntentStatus(intent, '已取消')}>取消意向</button>}
+      </div>
+    </article>
   );
 }
 
@@ -1216,11 +1330,12 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
   );
 }
 
-function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, onMessage, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; favoriteIds: Set<number>; onFavorite: (post: MarketPost) => void; onReport: (type: 'post' | 'moment', id: number) => void; onMessage: (post: MarketPost) => void; onMomentChanged: () => void; onClose: () => void }) {
+function DetailModal({ detail, currentUser, favoriteIds, sentIntents, onFavorite, onReport, onMessage, onTradeIntent, onMomentChanged, onClose }: { detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }; currentUser: UserProfile | null; favoriteIds: Set<number>; sentIntents: TradeIntent[]; onFavorite: (post: MarketPost) => void; onReport: (type: 'post' | 'moment', id: number) => void; onMessage: (post: MarketPost) => void; onTradeIntent: (post: MarketPost, message: string) => Promise<boolean>; onMomentChanged: () => void; onClose: () => void }) {
   const item = detail.item;
   const title = detail.type === 'post' ? (item as MarketPost).title : detail.type === 'moment' ? `${(item as Moment).petName} 的日常` : (item as Pet).name;
   const post = detail.type === 'post' ? item as MarketPost : null;
   const images = detail.type === 'pet' ? imageList({ imageUrl: (item as Pet).imageUrl }) : imageList(item as MarketPost | Moment);
+  const existingIntent = post ? sentIntents.find((intent) => intent.postId === post.id) : undefined;
   return (
     <div className="modalBackdrop" onClick={onClose}>
       <article className="detailModal" onClick={(event) => event.stopPropagation()}>
@@ -1242,6 +1357,7 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, o
           <button type="button" className="messageAction" onClick={() => onMessage(post)}><MessageCircle size={18} />私信发布者</button>
           <button type="button" className="reportAction" onClick={() => onReport('post', post.id)}><Flag size={18} />举报</button>
         </div>}
+        {post && <TradeIntentForm post={post} currentUser={currentUser} existingIntent={existingIntent} onSubmit={onTradeIntent} />}
         {detail.type === 'moment' && <DetailRows rows={[
           ['分类', (item as Moment).category || '日常'],
           ['地区', (item as Moment).city || '未选择地区'],
@@ -1266,6 +1382,44 @@ function DetailModal({ detail, currentUser, favoriteIds, onFavorite, onReport, o
         ]} />}
       </article>
     </div>
+  );
+}
+
+function TradeIntentForm({ post, currentUser, existingIntent, onSubmit }: { post: MarketPost; currentUser: UserProfile | null; existingIntent?: TradeIntent; onSubmit: (post: MarketPost, message: string) => Promise<boolean> }) {
+  const [message, setMessage] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [notice, setNotice] = React.useState('');
+  const isOwner = currentUser?.nickname === post.author;
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = message.trim();
+    setNotice('');
+    if (!currentUser) return setNotice('请先登录后再提交交易意向。');
+    if (isOwner) return setNotice('这是你自己发布的帖子，不能提交意向。');
+    if (existingIntent) return setNotice(`你已经提交过意向，当前状态：${existingIntent.status}`);
+    if (!text) return setNotice('请简单说明你的交易意向。');
+    if (hasUnsafeContent(text)) return setNotice('意向说明不能填写手机号、微信号、QQ 号或敏感词。');
+    setBusy(true);
+    const ok = await onSubmit(post, text);
+    setBusy(false);
+    if (ok) {
+      setMessage('');
+      setNotice('意向已提交，发布者可在“我的发布”里处理。');
+    }
+  }
+
+  return (
+    <form className="intentForm" onSubmit={submit}>
+      <div className="intentFormTitle"><Clock3 size={17} /><strong>提交交易意向</strong><span>站内留痕，后续可处理状态</span></div>
+      {existingIntent ? <p className="formNote">你已提交过该帖子意向，当前状态：{existingIntent.status}</p> : (
+        <>
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} disabled={!currentUser || isOwner || busy} placeholder="说明你想购买、互换、领养或预约看宠的意向，禁止手机号线下联系。" />
+          <button type="submit" disabled={!currentUser || isOwner || busy}>{busy ? '提交中...' : '提交意向'}</button>
+        </>
+      )}
+      {notice && <p className="formNote">{notice}</p>}
+    </form>
   );
 }
 
@@ -1406,6 +1560,13 @@ function formatTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function statusClass(status: string) {
+  if (status === '已同意') return 'accepted';
+  if (status === '已拒绝') return 'rejected';
+  if (status === '已取消') return 'canceled';
+  return 'pending';
 }
 
 function formatPrice(value?: number) {
