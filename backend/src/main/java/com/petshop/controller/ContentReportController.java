@@ -46,7 +46,8 @@ public class ContentReportController {
     }
 
     @GetMapping("/admin")
-    public List<ContentReport> adminReports() {
+    public List<ContentReport> adminReports(@RequestParam String admin) {
+        UserGuard.requireSuperAdmin(users, admin);
         return reports.findAllByOrderByCreatedAtDesc();
     }
 
@@ -77,6 +78,7 @@ public class ContentReportController {
                                 @RequestParam(defaultValue = "none") String action,
                                 @RequestParam(defaultValue = "") String note) {
         requireText(operator, "请填写处理人");
+        UserGuard.requireSuperAdmin(users, operator);
         ContentReport report = reports.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "举报记录不存在"));
         String author = targetAuthor(report.getTargetType(), report.getTargetId());

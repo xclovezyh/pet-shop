@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 public final class UserGuard {
+    public static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
+
     private UserGuard() {
     }
 
@@ -20,6 +22,14 @@ public final class UserGuard {
                     ? "账号已被限制"
                     : user.getBlacklistReason().trim();
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, reason);
+        }
+        return user;
+    }
+
+    public static AppUser requireSuperAdmin(AppUserRepository users, String nickname) {
+        AppUser user = requireActive(users, nickname, "使用管理后台");
+        if (!ROLE_SUPER_ADMIN.equals(user.getRole())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只有超级管理员可以访问管理后台");
         }
         return user;
     }

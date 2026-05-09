@@ -64,7 +64,7 @@ const tradeTypeConfigs: Record<string, { title: string; priceLabel: string; desc
   }
 };
 
-type AppUser = { id: number; nickname: string; blacklisted?: boolean; blacklistReason?: string };
+type AppUser = { id: number; nickname: string; role?: string; blacklisted?: boolean; blacklistReason?: string };
 type UserProfile = AppUser & { avatarUrl?: string; bio?: string; city?: string };
 type Category = { id: number; name: string; description: string; tags: string };
 type Pet = {
@@ -126,6 +126,7 @@ type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: numb
 type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin';
+type AdminTab = 'reports' | 'users' | 'posts' | 'moments' | 'categories' | 'regions';
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
 type ReferenceData = {
@@ -481,6 +482,7 @@ function App() {
 
 function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMessages, onAdmin, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onLogin: (user: UserProfile) => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onAdmin: () => void; onLogout: () => void }) {
   const [name, setName] = React.useState('');
+  const [adminCode, setAdminCode] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [open, setOpen] = React.useState(false);
@@ -521,7 +523,7 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
           <button type="button" onClick={() => { setOpen(false); onMine(); }}>我的发布</button>
           <button type="button" onClick={() => { setOpen(false); onProfile(); }}>个人主页</button>
           <button type="button" onClick={() => { setOpen(false); onMessages(); }}>站内私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
-          <button type="button" onClick={() => { setOpen(false); onAdmin(); }}>管理后台</button>
+          {isSuperAdmin(currentUser) && <button type="button" onClick={() => { setOpen(false); onAdmin(); }}>管理后台</button>}
           <button type="button" className="logoutItem" onClick={() => { setOpen(false); onLogout(); }}>退出登录</button>
         </div>}
       </div>
@@ -539,11 +541,12 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
       const res = await fetch(`${API_BASE}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname })
+        body: JSON.stringify({ nickname, adminCode })
       });
       if (!res.ok) throw new Error(await readError(res));
       onLogin(await res.json());
       setName('');
+      setAdminCode('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请检查后端服务。');
     } finally {
@@ -555,6 +558,7 @@ function LoginBox({ currentUser, unreadCount, onLogin, onMine, onProfile, onMess
     <form className="loginBox" onSubmit={submit} title={error || '登录后可发布'}>
       <LogIn size={16} />
       <input value={name} onChange={(event) => setName(event.target.value)} placeholder={error || '昵称登录'} />
+      <input value={adminCode} onChange={(event) => setAdminCode(event.target.value)} placeholder="管理员口令（可选）" type="password" />
       <button type="submit" disabled={busy}>{busy ? '...' : '登录'}</button>
     </form>
   );
@@ -773,6 +777,7 @@ function ProfilePage(props: { currentUser: UserProfile | null; referenceData: Re
 }
 
 function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfile | null; onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void; onChanged: () => void }) {
+  const [tab, setTab] = React.useState<AdminTab>('reports');
   const [users, setUsers] = React.useState<UserProfile[]>([]);
   const [reports, setReports] = React.useState<ContentReport[]>([]);
   const [posts, setPosts] = React.useState<MarketPost[]>([]);
@@ -781,16 +786,19 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
   const [regionAreas, setRegionAreas] = React.useState<RegionArea[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [notice, setNotice] = React.useState('');
+  const adminName = currentUser?.nickname || '';
+  const adminQuery = `admin=${encodeURIComponent(adminName)}`;
 
   const load = React.useCallback(() => {
+    if (!isSuperAdmin(currentUser)) return;
     setLoading(true);
     Promise.all([
-      fetch(`${API_BASE}/users`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/reports/admin`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/posts/admin`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/moments/admin`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/users?${adminQuery}`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/reports/admin?${adminQuery}`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/posts/admin?${adminQuery}`).then((res) => res.ok ? res.json() : []),
+      fetch(`${API_BASE}/moments/admin?${adminQuery}`).then((res) => res.ok ? res.json() : []),
       fetch(`${API_BASE}/categories`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/reference-data/regions/admin`).then((res) => res.ok ? res.json() : [])
+      fetch(`${API_BASE}/reference-data/regions/admin?${adminQuery}`).then((res) => res.ok ? res.json() : [])
     ])
       .then(([nextUsers, nextReports, nextPosts, nextMoments, nextCategories, nextRegions]) => {
         setUsers(nextUsers);
@@ -802,24 +810,27 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
       })
       .catch(() => setNotice('管理数据加载失败，请确认后端服务已启动。'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentUser, adminQuery]);
 
   React.useEffect(load, [load]);
 
   if (!currentUser) {
-    return <section className="page section"><EmptyState title="登录后进入管理后台" helper="当前原型使用登录用户进入管理视图，后续可替换为真实管理员权限。" /></section>;
+    return <section className="page section"><EmptyState title="登录后进入管理后台" helper="请使用超级管理员账号和管理员口令登录。" /></section>;
+  }
+  if (!isSuperAdmin(currentUser)) {
+    return <section className="page section"><EmptyState title="无权访问管理后台" helper="普通用户只能管理自己的发布、收藏和私信。" /></section>;
   }
   const operator = currentUser.nickname;
 
   async function updateUser(user: UserProfile, blocked: boolean) {
     const reason = encodeURIComponent(blocked ? '管理员处理违规行为' : '');
-    const res = await fetch(`${API_BASE}/users/${user.id}/${blocked ? 'blacklist' : 'unblacklist'}${blocked ? `?reason=${reason}` : ''}`, { method: 'PUT' });
+    const res = await fetch(`${API_BASE}/users/${user.id}/${blocked ? 'blacklist' : 'unblacklist'}?admin=${encodeURIComponent(operator)}${blocked ? `&reason=${reason}` : ''}`, { method: 'PUT' });
     setNotice(res.ok ? (blocked ? '用户已拉黑' : '用户已解除限制') : await readError(res));
     load();
   }
 
   async function audit(kind: 'posts' | 'moments', id: number, status: string) {
-    const res = await fetch(`${API_BASE}/${kind}/${id}/audit?status=${encodeURIComponent(status)}`, { method: 'PUT' });
+    const res = await fetch(`${API_BASE}/${kind}/${id}/audit?admin=${encodeURIComponent(operator)}&status=${encodeURIComponent(status)}`, { method: 'PUT' });
     setNotice(res.ok ? `内容已${status}` : await readError(res));
     load();
     onChanged();
@@ -843,7 +854,7 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
     if (!name?.trim()) return;
     const description = window.prompt('分类描述', category?.description || '') || '';
     const tags = window.prompt('标签，使用逗号分隔', category?.tags || '') || '';
-    const res = await fetch(`${API_BASE}/categories${category ? `/${category.id}` : ''}`, {
+    const res = await fetch(`${API_BASE}/categories${category ? `/${category.id}` : ''}?admin=${encodeURIComponent(operator)}`, {
       method: category ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description, tags, imageUrl: '' })
@@ -854,7 +865,7 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
 
   async function deleteCategory(category: Category) {
     if (!window.confirm(`确认删除分类「${category.name}」吗？`)) return;
-    const res = await fetch(`${API_BASE}/categories/${category.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/categories/${category.id}?admin=${encodeURIComponent(operator)}`, { method: 'DELETE' });
     setNotice(res.ok ? '分类已删除' : await readError(res));
     load();
   }
@@ -862,7 +873,7 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
   async function saveRegion(level: RegionArea['level'], parentId?: number, region?: RegionArea) {
     const name = window.prompt(region ? '修改地区名称' : '新增地区名称', region?.name || '');
     if (!name?.trim()) return;
-    const res = await fetch(`${API_BASE}/reference-data/regions${region ? `/${region.id}` : ''}`, {
+    const res = await fetch(`${API_BASE}/reference-data/regions${region ? `/${region.id}` : ''}?admin=${encodeURIComponent(operator)}`, {
       method: region ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, level, parentId, sortOrder: region?.sortOrder })
@@ -873,7 +884,7 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
 
   async function deleteRegion(region: RegionArea) {
     if (!window.confirm(`确认删除地区「${region.name}」及其下级地区吗？`)) return;
-    const res = await fetch(`${API_BASE}/reference-data/regions/${region.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/reference-data/regions/${region.id}?admin=${encodeURIComponent(operator)}`, { method: 'DELETE' });
     setNotice(res.ok ? '地区已删除' : await readError(res));
     load();
   }
@@ -885,8 +896,16 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
       <SectionTitle icon={<ShieldCheck />} title="管理后台" helper="集中处理举报、审核内容和限制违规用户" />
       {loading && <LoadingState label="正在加载管理数据" />}
       {notice && <p className="formNote adminNotice">{notice}</p>}
+      <div className="adminTabs">
+        <button type="button" className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}>举报处理 <span>{reports.length}</span></button>
+        <button type="button" className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>用户管理 <span>{users.length}</span></button>
+        <button type="button" className={tab === 'posts' ? 'active' : ''} onClick={() => setTab('posts')}>帖子审核 <span>{posts.length}</span></button>
+        <button type="button" className={tab === 'moments' ? 'active' : ''} onClick={() => setTab('moments')}>日常审核 <span>{moments.length}</span></button>
+        <button type="button" className={tab === 'categories' ? 'active' : ''} onClick={() => setTab('categories')}>分类管理 <span>{categories.length}</span></button>
+        <button type="button" className={tab === 'regions' ? 'active' : ''} onClick={() => setTab('regions')}>地区库 <span>{provinces.length}</span></button>
+      </div>
       <div className="adminGrid">
-        <AdminPanel title="举报处理">
+        {tab === 'reports' && <AdminPanel title="举报处理">
           {reports.length ? reports.map((report) => (
             <article className="adminItem" key={report.id}>
               <div className="between"><strong>{report.targetType === 'post' ? '交易帖举报' : '日常举报'} #{report.targetId}</strong><span className={`intentStatus ${report.status === '待处理' ? 'pending' : 'accepted'}`}>{report.status}</span></div>
@@ -899,8 +918,8 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
               </div>
             </article>
           )) : <p className="emptyState">暂无举报记录。</p>}
-        </AdminPanel>
-        <AdminPanel title="用户管理">
+        </AdminPanel>}
+        {tab === 'users' && <AdminPanel title="用户管理">
           {users.map((user) => (
             <article className="adminItem compact" key={user.id}>
               <div><strong>{user.nickname}</strong><p>{user.city || '未设置城市'} · {user.bio || '暂无简介'}</p></div>
@@ -908,8 +927,8 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
               <button type="button" onClick={() => updateUser(user, !user.blacklisted)}>{user.blacklisted ? '解除限制' : '拉黑'}</button>
             </article>
           ))}
-        </AdminPanel>
-        <AdminPanel title="帖子审核">
+        </AdminPanel>}
+        {tab === 'posts' && <AdminPanel title="帖子审核">
           {posts.map((post) => (
             <article className="adminItem" key={post.id}>
               <div className="between"><strong>{post.title}</strong><AuditBadge value={post.auditStatus} /></div>
@@ -922,8 +941,8 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
               </div>
             </article>
           ))}
-        </AdminPanel>
-        <AdminPanel title="日常审核">
+        </AdminPanel>}
+        {tab === 'moments' && <AdminPanel title="日常审核">
           {moments.map((moment) => (
             <article className="adminItem" key={moment.id}>
               <div className="between"><strong>{moment.petName} 的日常</strong><AuditBadge value={moment.auditStatus} /></div>
@@ -936,8 +955,8 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
               </div>
             </article>
           ))}
-        </AdminPanel>
-        <AdminPanel title="分类管理">
+        </AdminPanel>}
+        {tab === 'categories' && <AdminPanel title="分类管理">
           <div className="intentActions"><button type="button" onClick={() => saveCategory()}>新增分类</button></div>
           {categories.map((category) => (
             <article className="adminItem" key={category.id}>
@@ -949,8 +968,8 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
               </div>
             </article>
           ))}
-        </AdminPanel>
-        <AdminPanel title="地区库管理">
+        </AdminPanel>}
+        {tab === 'regions' && <AdminPanel title="地区库管理">
           <div className="intentActions"><button type="button" onClick={() => saveRegion('province')}>新增省份</button></div>
           {provinces.map((province) => (
             <article className="adminItem" key={province.id}>
@@ -963,7 +982,7 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
               </div>
             </article>
           ))}
-        </AdminPanel>
+        </AdminPanel>}
       </div>
     </section>
   );
@@ -1903,6 +1922,10 @@ function AuditBadge({ value }: { value?: string }) {
   const status = value || '审核通过';
   if (status === '审核通过') return null;
   return <span className={status === '已下架' ? 'auditBadge removed' : 'auditBadge'}>{status}</span>;
+}
+
+function isSuperAdmin(user: UserProfile | null) {
+  return user?.role === 'SUPER_ADMIN';
 }
 
 function formatPrice(value?: number) {

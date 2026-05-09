@@ -49,7 +49,8 @@ public class MomentController {
     }
 
     @GetMapping("/admin")
-    public List<Moment> adminList() {
+    public List<Moment> adminList(@RequestParam String admin) {
+        UserGuard.requireSuperAdmin(users, admin);
         return repository.findAll().stream()
                 .sorted(Comparator.comparing(Moment::getCreatedAt).reversed())
                 .collect(Collectors.toList());
@@ -127,7 +128,8 @@ public class MomentController {
     }
 
     @PutMapping("/{id}/audit")
-    public Moment audit(@PathVariable Long id, @RequestParam String status) {
+    public Moment audit(@PathVariable Long id, @RequestParam String admin, @RequestParam String status) {
+        UserGuard.requireSuperAdmin(users, admin);
         if (!AUDIT_APPROVED.equals(status) && !AUDIT_REMOVED.equals(status)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的审核状态");
         }

@@ -18,6 +18,7 @@ public class AppUser {
     private Long id;
 
     private String nickname;
+    private String role;
     private String avatarUrl;
     private String city;
     private Boolean blacklisted;

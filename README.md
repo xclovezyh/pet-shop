@@ -93,6 +93,26 @@ http://localhost:5173/index.html
 
 前端开发代理默认转发 `/api` 到 `http://localhost:8080`，可用 `VITE_API_PROXY` 覆盖。
 
+## 超级管理员
+
+管理后台只对 `SUPER_ADMIN` 角色开放。普通用户只能管理自己的发布、收藏和私信。
+
+默认开发配置：
+
+```text
+管理员昵称：superadmin
+管理员口令：change-me-admin-code
+```
+
+登录时在昵称中填写 `superadmin`，管理员口令中填写配置的口令，即可进入管理后台。生产环境必须通过环境变量修改：
+
+```powershell
+$env:APP_ADMIN_NICKNAMES="your-admin-name"
+$env:APP_ADMIN_CODE="your-strong-admin-code"
+```
+
+Docker 部署时可在 `.env` 中配置同名变量。
+
 ## 构建验证
 
 后端打包：

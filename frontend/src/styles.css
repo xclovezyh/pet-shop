@@ -113,7 +113,7 @@ nav button:hover::after {
   border: 0;
   height: 34px;
   padding: 0 6px;
-  width: 120px;
+  width: 128px;
 }
 
 .loginBox button {
@@ -1287,7 +1287,39 @@ textarea {
 .adminGrid {
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
+}
+
+.adminTabs {
+  background: #eef4f1;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-bottom: 18px;
+  padding: 6px;
+}
+
+.adminTabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #526159;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 44px;
+  padding: 8px;
+}
+
+.adminTabs button.active {
+  background: #19513d;
+  color: #fff;
+}
+
+.adminTabs span {
+  display: block;
+  font-size: 12px;
+  opacity: 0.78;
 }
 
 .adminPanel {
@@ -1731,6 +1763,7 @@ textarea {
   .compactGrid.petGrid,
   .momentGrid,
   .adminGrid,
+  .adminTabs,
   .intentBoard,
   .myColumns,
   .quickFilters {
@@ -1800,7 +1833,11 @@ textarea {
   .loginBox {
     align-items: stretch;
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr;
+  }
+
+  .loginBox button {
+    grid-column: 1 / -1;
   }
 
   .detailModal {

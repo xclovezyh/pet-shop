@@ -2,8 +2,10 @@ package com.petshop.controller;
 
 import com.petshop.model.ReferenceOption;
 import com.petshop.model.RegionArea;
+import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.ReferenceOptionRepository;
 import com.petshop.repository.RegionAreaRepository;
+import com.petshop.support.UserGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,10 +28,12 @@ import java.util.stream.Collectors;
 public class ReferenceDataController {
     private final ReferenceOptionRepository options;
     private final RegionAreaRepository regions;
+    private final AppUserRepository users;
 
-    public ReferenceDataController(ReferenceOptionRepository options, RegionAreaRepository regions) {
+    public ReferenceDataController(ReferenceOptionRepository options, RegionAreaRepository regions, AppUserRepository users) {
         this.options = options;
         this.regions = regions;
+        this.users = users;
     }
 
     @GetMapping
@@ -46,7 +51,8 @@ public class ReferenceDataController {
     }
 
     @GetMapping("/regions/admin")
-    public List<RegionArea> regionAdminList() {
+    public List<RegionArea> regionAdminList(@RequestParam String admin) {
+        UserGuard.requireSuperAdmin(users, admin);
         return regions.findAll().stream()
                 .sorted((left, right) -> {
                     int level = levelOrder(left.getLevel()) - levelOrder(right.getLevel());
@@ -59,7 +65,8 @@ public class ReferenceDataController {
     }
 
     @PostMapping("/regions")
-    public RegionArea createRegion(@RequestBody RegionArea region) {
+    public RegionArea createRegion(@RequestParam String admin, @RequestBody RegionArea region) {
+        UserGuard.requireSuperAdmin(users, admin);
         validateRegion(region);
         region.setId(null);
         if (region.getSortOrder() == null) {
@@ -69,7 +76,8 @@ public class ReferenceDataController {
     }
 
     @PutMapping("/regions/{id}")
-    public RegionArea updateRegion(@PathVariable Long id, @RequestBody RegionArea payload) {
+    public RegionArea updateRegion(@PathVariable Long id, @RequestParam String admin, @RequestBody RegionArea payload) {
+        UserGuard.requireSuperAdmin(users, admin);
         RegionArea region = regions.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "地区不存在"));
         validateRegion(payload);
@@ -81,7 +89,8 @@ public class ReferenceDataController {
     }
 
     @DeleteMapping("/regions/{id}")
-    public void deleteRegion(@PathVariable Long id) {
+    public void deleteRegion(@PathVariable Long id, @RequestParam String admin) {
+        UserGuard.requireSuperAdmin(users, admin);
         RegionArea region = regions.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "地区不存在"));
         deleteRegionTree(region);

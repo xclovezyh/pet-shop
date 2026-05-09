@@ -27,3 +27,5 @@ spring:
 app:
   upload-dir: uploads
   upload-url-prefix: /api/uploads/
+  admin-nicknames: ${APP_ADMIN_NICKNAMES:superadmin}
+  admin-code: ${APP_ADMIN_CODE:change-me-admin-code}

@@ -29,6 +29,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
       APP_UPLOAD_DIR: ${APP_UPLOAD_DIR:-/app/uploads}
       APP_UPLOAD_URL_PREFIX: ${APP_UPLOAD_URL_PREFIX:-/api/uploads/}
+      APP_ADMIN_NICKNAMES: ${APP_ADMIN_NICKNAMES:-superadmin}
+      APP_ADMIN_CODE: ${APP_ADMIN_CODE:-change-me-admin-code}
       SPRING_PROFILES_ACTIVE: prod
     ports:
       - "8080:8080"
