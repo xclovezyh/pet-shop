@@ -1,7 +1,7 @@
 package com.petshop.support;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.petshop.api.ApiErrorCode;
+import com.petshop.api.ApiException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -20,11 +20,11 @@ public final class ContentSafety {
     public static void validate(String content) {
         String text = safe(content).toLowerCase();
         if (PHONE_PATTERN.matcher(text).find() || OFFSITE_CONTACT_PATTERN.matcher(text).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "禁止填写手机号、微信号或 QQ 号，请使用站内沟通");
+            throw new ApiException(ApiErrorCode.CONTENT_CONTACT_FORBIDDEN, "禁止填写手机号、微信号或 QQ 号，请使用站内沟通");
         }
         for (String word : SENSITIVE_WORDS) {
             if (text.contains(word.toLowerCase())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内容包含敏感词，请修改后再提交");
+                throw new ApiException(ApiErrorCode.CONTENT_SENSITIVE_FORBIDDEN, "内容包含敏感词，请修改后再提交");
             }
         }
     }

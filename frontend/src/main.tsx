@@ -127,6 +127,8 @@ type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'dist
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin' | 'account';
 type AdminTab = 'reports' | 'users' | 'posts' | 'moments' | 'categories' | 'regions';
+type ApiEnvelope<T> = { success?: boolean; code?: string; message?: string; data?: T };
+type VerifyCodeResponse = { phone: string; code?: string; expireSeconds: number; message: string };
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
 type ReferenceData = {
@@ -183,7 +185,7 @@ function useApi<T>(path: string, fallback: T) {
   const load = React.useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}${path}`)
-      .then((res) => res.json())
+      .then((res) => readApiData<T>(res))
       .then(setData)
       .catch(() => setData(fallback))
       .finally(() => setLoading(false));
@@ -253,7 +255,7 @@ function App() {
   React.useEffect(() => {
     if (!currentUser) return;
     fetch(`${API_BASE}/users/exists?nickname=${encodeURIComponent(currentUser.nickname)}`)
-      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((res) => res.ok ? readApiData<UserProfile>(res) : Promise.reject())
       .then((user) => {
         if (user.blacklisted) {
           alert(user.blacklistReason || '账号已被限制，暂不能继续操作。');
@@ -272,7 +274,7 @@ function App() {
       return;
     }
     fetch(`${API_BASE}/messages?user=${encodeURIComponent(currentUser.nickname)}`)
-      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((res) => res.ok ? readApiData<MessageThread[]>(res) : Promise.reject())
       .then(setThreads)
       .catch(() => setThreads([]));
   }, [currentUser]);
@@ -285,7 +287,7 @@ function App() {
       return;
     }
     fetch(`${API_BASE}/favorites?user=${encodeURIComponent(currentUser.nickname)}`)
-      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((res) => res.ok ? readApiData<PostFavorite[]>(res) : Promise.reject())
       .then((items: PostFavorite[]) => setFavoritePosts(items.map((item) => item.post).filter(Boolean) as MarketPost[]))
       .catch(() => setFavoritePosts([]));
   }, [currentUser]);
@@ -300,8 +302,8 @@ function App() {
     }
     const user = encodeURIComponent(currentUser.nickname);
     Promise.all([
-      fetch(`${API_BASE}/trade-intents?user=${user}&role=requester`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/trade-intents?user=${user}&role=owner`).then((res) => res.ok ? res.json() : [])
+      fetch(`${API_BASE}/trade-intents?user=${user}&role=requester`).then((res) => res.ok ? readApiData<TradeIntent[]>(res) : []),
+      fetch(`${API_BASE}/trade-intents?user=${user}&role=owner`).then((res) => res.ok ? readApiData<TradeIntent[]>(res) : [])
     ])
       .then(([sent, received]) => {
         setSentIntents(sent);
@@ -334,6 +336,7 @@ function App() {
       alert(await readError(res));
       return;
     }
+    await readApiData<MessageThread>(res);
     setDetail(null);
     setPage('messages');
     loadThreads();
@@ -391,6 +394,7 @@ function App() {
       alert(await readError(res));
       return false;
     }
+    await readApiData<TradeIntent>(res);
     loadTradeIntents();
     return true;
   }
@@ -402,6 +406,7 @@ function App() {
       alert(await readError(res));
       return;
     }
+    await readApiData<TradeIntent>(res);
     loadTradeIntents();
   }
 
@@ -560,8 +565,8 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: mobile })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || await readError(res));
+      if (!res.ok) throw new Error(await readError(res));
+      const data = await readApiData<VerifyCodeResponse>(res);
       setCode(data.code || '');
       setNotice(data.code ? `开发验证码：${data.code}` : '验证码已发送，请查看短信。');
     } catch (err) {
@@ -589,7 +594,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error(await readError(res));
-      const user = await res.json();
+      const user = await readApiData<UserProfile>(res);
       onLogin(user);
       setNotice(mode === 'register' ? '注册成功，已自动登录。' : '登录成功。');
     } catch (err) {
@@ -895,12 +900,12 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
     if (!isSuperAdmin(currentUser)) return;
     setLoading(true);
     Promise.all([
-      fetch(`${API_BASE}/users?${adminQuery}`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/reports/admin?${adminQuery}`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/posts/admin?${adminQuery}`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/moments/admin?${adminQuery}`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/categories`).then((res) => res.ok ? res.json() : []),
-      fetch(`${API_BASE}/reference-data/regions/admin?${adminQuery}`).then((res) => res.ok ? res.json() : [])
+      fetch(`${API_BASE}/users?${adminQuery}`).then((res) => res.ok ? readApiData<UserProfile[]>(res) : []),
+      fetch(`${API_BASE}/reports/admin?${adminQuery}`).then((res) => res.ok ? readApiData<ContentReport[]>(res) : []),
+      fetch(`${API_BASE}/posts/admin?${adminQuery}`).then((res) => res.ok ? readApiData<MarketPost[]>(res) : []),
+      fetch(`${API_BASE}/moments/admin?${adminQuery}`).then((res) => res.ok ? readApiData<Moment[]>(res) : []),
+      fetch(`${API_BASE}/categories`).then((res) => res.ok ? readApiData<Category[]>(res) : []),
+      fetch(`${API_BASE}/reference-data/regions/admin?${adminQuery}`).then((res) => res.ok ? readApiData<RegionArea[]>(res) : [])
     ])
       .then(([nextUsers, nextReports, nextPosts, nextMoments, nextCategories, nextRegions]) => {
         setUsers(nextUsers);
@@ -945,13 +950,16 @@ function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfil
   }
 
   async function handleReport(report: ContentReport, action: string) {
-    const params = new URLSearchParams({
-      operator,
-      status: '已处理',
-      action,
-      note: action.includes('Block') ? '举报处理后限制作者' : '举报处理完成'
+    const params = new URLSearchParams({ operator });
+    const res = await fetch(`${API_BASE}/reports/${report.id}/handle?${params.toString()}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: '已处理',
+        action,
+        note: action.includes('Block') ? '举报处理后限制作者' : '举报处理完成'
+      })
     });
-    const res = await fetch(`${API_BASE}/reports/${report.id}/handle?${params.toString()}`, { method: 'PUT' });
     setNotice(res.ok ? '举报已处理' : await readError(res));
     load();
     onChanged();
@@ -1419,7 +1427,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
         form.append('file', file);
         const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
         if (!res.ok) throw new Error(await readError(res));
-        const data = await res.json();
+        const data = await readApiData<{ url: string }>(res);
         setImageUrls((items) => [...items, data.url]);
       }
     } catch (err) {
@@ -1644,7 +1652,7 @@ function ProfilePanel(props: {
         body: JSON.stringify({ avatarUrl, bio, city })
       });
       if (!res.ok) throw new Error(await readError(res));
-      props.onSaved(await res.json());
+      props.onSaved(await readApiData<UserProfile>(res));
       setStatus('资料已保存');
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '保存失败，请稍后重试。');
@@ -1700,7 +1708,7 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
   React.useEffect(() => {
     if (!activeThread || !currentUser) return;
     fetch(`${API_BASE}/messages/${activeThread.id}/read?user=${encodeURIComponent(currentUser.nickname)}`, { method: 'PUT' })
-      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((res) => res.ok ? readApiData<MessageThread>(res) : Promise.reject())
       .then((updated) => {
         onThreadsChange(threads.map((thread) => thread.id === updated.id ? updated : thread));
       })
@@ -1876,7 +1884,7 @@ function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment;
 
   const loadComments = React.useCallback(() => {
     fetch(`${API_BASE}/moments/${moment.id}/comments`)
-      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((res) => res.ok ? readApiData<MomentComment[]>(res) : Promise.reject())
       .then(setComments)
       .catch(() => setComments([]));
   }, [moment.id]);
@@ -1886,7 +1894,7 @@ function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment;
   async function likeMoment() {
     const res = await fetch(`${API_BASE}/moments/${moment.id}/like`, { method: 'POST' });
     if (!res.ok) return setError(await readError(res));
-    const next = await res.json() as Moment;
+    const next = await readApiData<Moment>(res);
     setLikes(next.likes || 0);
     onChanged();
   }
@@ -2088,9 +2096,9 @@ function parseRegion(value: string | undefined, regions: Region[]) {
 
 async function readError(res: Response) {
   try {
-    const data = await res.json();
+    const data = await readApiEnvelope<unknown>(res);
     if (data.message && data.message !== res.statusText) return data.message;
-    if (data.error && data.error !== res.statusText) return data.error;
+    if ((data as Record<string, unknown>).error && (data as Record<string, unknown>).error !== res.statusText) return String((data as Record<string, unknown>).error);
     if (res.status === 400) return '请求内容不符合要求，请检查填写项。';
     if (res.status === 401) return '账号或密码不正确。';
     if (res.status === 403) return '没有权限执行这个操作。';
@@ -2105,6 +2113,18 @@ async function readError(res: Response) {
     }
     return '请求失败，请检查后端服务是否正常运行。';
   }
+}
+
+async function readApiEnvelope<T>(res: Response): Promise<ApiEnvelope<T> & Record<string, unknown>> {
+  return await res.json() as ApiEnvelope<T> & Record<string, unknown>;
+}
+
+async function readApiData<T>(res: Response): Promise<T> {
+  const body = await readApiEnvelope<T>(res);
+  if (body && Object.prototype.hasOwnProperty.call(body, 'data')) {
+    return body.data as T;
+  }
+  return body as unknown as T;
 }
 
 function RegionPicker(props: {

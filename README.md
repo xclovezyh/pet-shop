@@ -93,6 +93,9 @@ http://localhost:5173/index.html
 
 前端开发代理默认转发 `/api` 到 `http://localhost:8080`，可用 `VITE_API_PROXY` 覆盖。
 
+后端开发和重构统一遵循仓库根目录下的 `BACKEND_DEVELOPMENT_SPEC.md`。
+当前已按该规范完成第一批重构：用户模块、交易帖子模块、日常动态与评论模块。
+
 ## 账号登录
 
 前台账号入口在右上角“登录 / 注册”。当前支持：
@@ -206,3 +209,6 @@ database/initial-data.sql
 - 当前登录仍是原型阶段的昵称登录，不是完整认证系统。
 - 项目已接入 Flyway，迁移脚本位于 `backend/src/main/resources/db/migration`；开发环境默认关闭 Flyway 并保留 `ddl-auto: update` 便于兼容旧本地库，生产环境启用 Flyway 并使用 `ddl-auto: validate`。
 - 本地上传文件默认保存在 `backend/uploads`，Docker 部署时挂载到 `uploads` 数据卷。
+
+
+????????????????????????????????????/???????????????????????????? [BACKEND_DEVELOPMENT_SPEC.md](BACKEND_DEVELOPMENT_SPEC.md)?

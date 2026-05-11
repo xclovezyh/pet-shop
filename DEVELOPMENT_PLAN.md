@@ -45,6 +45,11 @@
 
 - ~~项目基础搭建：前端 Vite + React + TypeScript。~~
 - ~~项目基础搭建：后端 Spring Boot + MySQL + JPA。~~
+- 后端接口规范化重构：统一响应体、错误码、DTO、Service 分层。
+- 后端接口规范化重构：私信模块迁移到 DTO + Service。
+- 后端接口规范化重构：交易意向模块迁移到 DTO + Service。
+- 后端接口规范化重构：收藏模块迁移到 DTO + Service。
+- 后端接口规范化重构：举报与管理后台其余接口迁移到 DTO + Service。
 - ~~前后端基础接口联通。~~
 - ~~GitHub 仓库接入：`git@github.com:xclovezyh/pet-shop.git`。~~
 - ~~从 `main` 拉出个人开发分支：`feature/personal-dev`。~~
@@ -113,6 +118,10 @@
 - ~~管理后台按业务分区展示。~~
 - ~~独立登录注册页，支持用户名密码和手机号验证码。~~
 - ~~数据库表字段中文注释与后端模型字段说明。~~
+- ~~后端开发规范文档：统一响应体、错误码、DTO、Service 分层。~~
+- ~~用户模块迁移到 DTO + Service + ApiResponse。~~
+- ~~交易帖子模块迁移到 DTO + Service + ApiResponse。~~
+- ~~日常动态与评论模块迁移到 DTO + Service + ApiResponse。~~
 
 ## 交易流程模块
 
@@ -220,3 +229,13 @@
 - ~~发布者可以同意或拒绝待处理交易意向。~~
 - ~~提交者可以取消自己的待处理交易意向。~~
 - ~~交易意向接口完成后端打包、前端类型检查、前端构建和临时接口验证。~~
+
+
+## ???????????2026-05-12?
+
+- ~~??????? DTO + Service + ApiResponse~~
+- ~~????????? DTO + Service + ApiResponse~~
+- ~~??????? DTO + Service + ApiResponse~~
+- ~~??????? DTO + Service + ApiResponse~~
+- ~~??????????????/?????????? DTO + Service + ApiResponse~~
+- ~~??????????????? readApiData ????????????~~
