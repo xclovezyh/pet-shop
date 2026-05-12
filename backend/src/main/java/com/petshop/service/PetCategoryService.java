@@ -4,9 +4,11 @@ import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
 import com.petshop.dto.category.PetCategoryRequest;
 import com.petshop.dto.category.PetCategoryResponse;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.model.PetCategory;
 import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.PetCategoryRepository;
+import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +29,12 @@ public class PetCategoryService {
         return repository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    public PageResponse<PetCategoryResponse> adminList(Integer page, Integer size) {
+        return PageSupport.slice(repository.findAll().stream()
+                .sorted((left, right) -> left.getId().compareTo(right.getId()))
+                .collect(Collectors.toList()), page, size, this::toResponse);
     }
 
     public PetCategoryResponse create(String admin, PetCategoryRequest request) {

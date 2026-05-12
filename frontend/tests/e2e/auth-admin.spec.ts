@@ -12,6 +12,20 @@ function auth(token: string, user: Record<string, unknown>, message: string) {
   return ok({ token, user }, message);
 }
 
+function pageOf<T>(items: T[], page = 1, size = items.length || 10) {
+  const total = items.length;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / size);
+  return {
+    items,
+    total,
+    page,
+    size,
+    totalPages,
+    hasNext: false,
+    hasPrevious: false
+  };
+}
+
 function fail(status: number, code: string, message: string) {
   return {
     status,
@@ -170,13 +184,13 @@ async function installApiMocks(page: Page) {
     }
     if (method === 'GET' && pathname === '/api/admin/auth/me') return route.fulfill(ok(superAdmin));
     if (method === 'POST' && pathname === '/api/admin/auth/logout') return route.fulfill(ok(null, '已退出登录'));
-    if (method === 'GET' && pathname === '/api/admin/accounts') return route.fulfill(ok([superAdmin]));
-    if (method === 'GET' && pathname === '/api/admin/users') return route.fulfill(ok(state.users));
-    if (method === 'GET' && pathname === '/api/admin/reports') return route.fulfill(ok(state.reports));
-    if (method === 'GET' && pathname === '/api/admin/posts') return route.fulfill(ok(state.posts));
-    if (method === 'GET' && pathname === '/api/admin/moments') return route.fulfill(ok(state.moments));
-    if (method === 'GET' && pathname === '/api/admin/categories') return route.fulfill(ok(state.categories));
-    if (method === 'GET' && pathname === '/api/admin/regions') return route.fulfill(ok(state.regions));
+    if (method === 'GET' && pathname === '/api/admin/accounts') return route.fulfill(ok(pageOf([superAdmin], 1, 8)));
+    if (method === 'GET' && pathname === '/api/admin/users') return route.fulfill(ok(pageOf(state.users, 1, 10)));
+    if (method === 'GET' && pathname === '/api/admin/reports') return route.fulfill(ok(pageOf(state.reports, 1, 8)));
+    if (method === 'GET' && pathname === '/api/admin/posts') return route.fulfill(ok(pageOf(state.posts, 1, 8)));
+    if (method === 'GET' && pathname === '/api/admin/moments') return route.fulfill(ok(pageOf(state.moments, 1, 8)));
+    if (method === 'GET' && pathname === '/api/admin/categories') return route.fulfill(ok(pageOf(state.categories, 1, 10)));
+    if (method === 'GET' && pathname === '/api/admin/regions') return route.fulfill(ok(pageOf(state.regions, 1, 10)));
     if (method === 'PUT' && pathname === '/api/admin/users/2/blacklist') {
       const user = state.users.find((item) => item.id === 2);
       if (user) user.blacklisted = true;

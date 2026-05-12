@@ -2,6 +2,7 @@ package com.petshop.service;
 
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.reference.ReferenceDataResponse;
 import com.petshop.dto.reference.RegionAreaRequest;
 import com.petshop.dto.reference.RegionAreaResponse;
@@ -12,6 +13,7 @@ import com.petshop.model.RegionArea;
 import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.ReferenceOptionRepository;
 import com.petshop.repository.RegionAreaRepository;
+import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
 import org.springframework.stereotype.Service;
 
@@ -47,8 +49,8 @@ public class ReferenceDataService {
         return response;
     }
 
-    public List<RegionAreaResponse> regionAdminList(String admin) {
-        return regions.findAll().stream()
+    public PageResponse<RegionAreaResponse> regionAdminList(String admin, Integer page, Integer size) {
+        return PageSupport.slice(regions.findAll().stream()
                 .sorted((left, right) -> {
                     int level = levelOrder(left.getLevel()) - levelOrder(right.getLevel());
                     if (level != 0) {
@@ -60,8 +62,11 @@ public class ReferenceDataService {
                     }
                     return left.getId().compareTo(right.getId());
                 })
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()), page, size, this::toResponse);
+    }
+
+    public List<RegionAreaResponse> regionAdminList(String admin) {
+        return regionAdminList(admin, 1, 50).getItems();
     }
 
     public RegionAreaResponse createRegion(String admin, RegionAreaRequest request) {

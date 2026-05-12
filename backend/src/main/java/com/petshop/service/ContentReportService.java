@@ -2,6 +2,7 @@ package com.petshop.service;
 
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.report.ContentReportCreateRequest;
 import com.petshop.dto.report.ContentReportHandleRequest;
 import com.petshop.dto.report.ContentReportResponse;
@@ -14,6 +15,7 @@ import com.petshop.repository.ContentReportRepository;
 import com.petshop.repository.MarketPostRepository;
 import com.petshop.repository.MomentRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
 import org.springframework.stereotype.Service;
 
@@ -57,10 +59,12 @@ public class ContentReportService {
                 .collect(Collectors.toList());
     }
 
+    public PageResponse<ContentReportResponse> adminReports(String admin, Integer page, Integer size) {
+        return PageSupport.slice(reports.findAllByOrderByCreatedAtDesc(), page, size, this::toResponse);
+    }
+
     public List<ContentReportResponse> adminReports(String admin) {
-        return reports.findAllByOrderByCreatedAtDesc().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        return adminReports(admin, 1, 50).getItems();
     }
 
     public ContentReportResponse create(ContentReportCreateRequest request) {

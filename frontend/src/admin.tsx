@@ -1,6 +1,18 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { FileText, Flag, LogOut, MapPin, ShieldCheck, Sparkles, Tags, UserPlus, Users } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Flag,
+  LogOut,
+  MapPin,
+  ShieldCheck,
+  Sparkles,
+  Tags,
+  UserPlus,
+  Users
+} from 'lucide-react';
 import './styles.css';
 import { readApiData, readError } from './api';
 
@@ -24,6 +36,35 @@ type Moment = { id: number; petName: string; author: string; category: string; c
 type Category = { id: number; name: string; description: string; tags: string };
 type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
 type TabKey = 'accounts' | 'users' | 'reports' | 'posts' | 'moments' | 'categories' | 'regions';
+type PageResult<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+};
+
+const TAB_PAGE_SIZES: Record<TabKey, number> = {
+  accounts: 6,
+  users: 8,
+  reports: 8,
+  posts: 6,
+  moments: 6,
+  categories: 8,
+  regions: 8
+};
+
+const EMPTY_PAGE = <T,>(size: number): PageResult<T> => ({
+  items: [],
+  total: 0,
+  page: 1,
+  size,
+  totalPages: 0,
+  hasNext: false,
+  hasPrevious: false
+});
 
 function getStoredSession() {
   const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
@@ -53,55 +94,83 @@ async function adminFetch(path: string, init: RequestInit = {}) {
 function AdminApp() {
   const [session, setSession] = React.useState<AdminSession | null>(() => getStoredSession());
   const [tab, setTab] = React.useState<TabKey>('accounts');
+  const [pages, setPages] = React.useState<Record<TabKey, number>>({
+    accounts: 1,
+    users: 1,
+    reports: 1,
+    posts: 1,
+    moments: 1,
+    categories: 1,
+    regions: 1
+  });
   const [notice, setNotice] = React.useState('');
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
-  const [accounts, setAccounts] = React.useState<AdminProfile[]>([]);
-  const [users, setUsers] = React.useState<UserProfile[]>([]);
-  const [reports, setReports] = React.useState<ContentReport[]>([]);
-  const [posts, setPosts] = React.useState<MarketPost[]>([]);
-  const [moments, setMoments] = React.useState<Moment[]>([]);
-  const [categories, setCategories] = React.useState<Category[]>([]);
-  const [regions, setRegions] = React.useState<RegionArea[]>([]);
+
+  const [accounts, setAccounts] = React.useState<PageResult<AdminProfile>>(EMPTY_PAGE(TAB_PAGE_SIZES.accounts));
+  const [users, setUsers] = React.useState<PageResult<UserProfile>>(EMPTY_PAGE(TAB_PAGE_SIZES.users));
+  const [reports, setReports] = React.useState<PageResult<ContentReport>>(EMPTY_PAGE(TAB_PAGE_SIZES.reports));
+  const [posts, setPosts] = React.useState<PageResult<MarketPost>>(EMPTY_PAGE(TAB_PAGE_SIZES.posts));
+  const [moments, setMoments] = React.useState<PageResult<Moment>>(EMPTY_PAGE(TAB_PAGE_SIZES.moments));
+  const [categories, setCategories] = React.useState<PageResult<Category>>(EMPTY_PAGE(TAB_PAGE_SIZES.categories));
+  const [regions, setRegions] = React.useState<PageResult<RegionArea>>(EMPTY_PAGE(TAB_PAGE_SIZES.regions));
+
   const [adminForm, setAdminForm] = React.useState({ username: '', password: '', displayName: '' });
   const [categoryForm, setCategoryForm] = React.useState({ name: '', description: '', tags: '' });
   const [regionForm, setRegionForm] = React.useState({ name: '', level: 'province' as RegionArea['level'], parentId: '' });
 
-  const loadAll = React.useCallback(async () => {
+  const page = pages[tab];
+  const size = TAB_PAGE_SIZES[tab];
+
+  const tabs: Array<{ key: TabKey; label: string; helper: string; icon: React.ReactNode }> = [
+    { key: 'accounts', label: '管理员账号', helper: '独立维护后台账号与状态', icon: <UserPlus size={16} /> },
+    { key: 'users', label: '用户管理', helper: '分页处理普通用户治理动作', icon: <Users size={16} /> },
+    { key: 'reports', label: '举报处理', helper: '按批次处理待审核内容', icon: <Flag size={16} /> },
+    { key: 'posts', label: '帖子审核', helper: '避免长列表堆满一个页面', icon: <FileText size={16} /> },
+    { key: 'moments', label: '日常审核', helper: '单页聚焦当前待看的内容', icon: <Sparkles size={16} /> },
+    { key: 'categories', label: '分类管理', helper: '结构化维护分类基础库', icon: <Tags size={16} /> },
+    { key: 'regions', label: '地区库', helper: '分页维护行政区层级', icon: <MapPin size={16} /> }
+  ];
+
+  const currentTab = tabs.find((item) => item.key === tab)!;
+
+  const loadTab = React.useCallback(async (nextTab: TabKey, nextPage: number) => {
     if (!getStoredSession()) return;
     setLoading(true);
     setError('');
     try {
-      const results = await Promise.all([
-        adminFetch('/accounts'),
-        adminFetch('/users'),
-        adminFetch('/reports'),
-        adminFetch('/posts'),
-        adminFetch('/moments'),
-        adminFetch('/categories'),
-        adminFetch('/regions')
-      ]);
-      if (results.some((res) => !res.ok)) {
-        throw new Error('load');
+      const query = `?page=${nextPage}&size=${TAB_PAGE_SIZES[nextTab]}`;
+      if (nextTab === 'accounts') {
+        const res = await adminFetch(`/accounts${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setAccounts(await readApiData<PageResult<AdminProfile>>(res));
+      } else if (nextTab === 'users') {
+        const res = await adminFetch(`/users${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setUsers(await readApiData<PageResult<UserProfile>>(res));
+      } else if (nextTab === 'reports') {
+        const res = await adminFetch(`/reports${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setReports(await readApiData<PageResult<ContentReport>>(res));
+      } else if (nextTab === 'posts') {
+        const res = await adminFetch(`/posts${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setPosts(await readApiData<PageResult<MarketPost>>(res));
+      } else if (nextTab === 'moments') {
+        const res = await adminFetch(`/moments${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setMoments(await readApiData<PageResult<Moment>>(res));
+      } else if (nextTab === 'categories') {
+        const res = await adminFetch(`/categories${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setCategories(await readApiData<PageResult<Category>>(res));
+      } else if (nextTab === 'regions') {
+        const res = await adminFetch(`/regions${query}`);
+        if (!res.ok) throw new Error(await readError(res));
+        setRegions(await readApiData<PageResult<RegionArea>>(res));
       }
-      const [accountsData, usersData, reportsData, postsData, momentsData, categoriesData, regionsData] = await Promise.all([
-        readApiData<AdminProfile[]>(results[0]),
-        readApiData<UserProfile[]>(results[1]),
-        readApiData<ContentReport[]>(results[2]),
-        readApiData<MarketPost[]>(results[3]),
-        readApiData<Moment[]>(results[4]),
-        readApiData<Category[]>(results[5]),
-        readApiData<RegionArea[]>(results[6])
-      ]);
-      setAccounts(accountsData);
-      setUsers(usersData);
-      setReports(reportsData);
-      setPosts(postsData);
-      setMoments(momentsData);
-      setCategories(categoriesData);
-      setRegions(regionsData);
-    } catch {
-      setError('管理数据加载失败，请重新登录。');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '管理数据加载失败，请重新登录。');
     } finally {
       setLoading(false);
     }
@@ -115,7 +184,6 @@ function AdminApp() {
         const next = { token: session.token, admin };
         setSession(next);
         saveSession(next);
-        loadAll();
       })
       .catch(() => {
         clearSession();
@@ -123,9 +191,15 @@ function AdminApp() {
       });
   }, []);
 
+  React.useEffect(() => {
+    if (!session) return;
+    void loadTab(tab, page);
+  }, [session, tab, page, loadTab]);
+
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setNotice('');
     const form = new FormData(event.currentTarget);
     const res = await adminFetch('/auth/login', {
       method: 'POST',
@@ -141,8 +215,9 @@ function AdminApp() {
     const next = await readApiData<AdminSession>(res);
     setSession(next);
     saveSession(next);
+    setTab('accounts');
+    setPages((prev) => ({ ...prev, accounts: 1 }));
     setNotice('管理员登录成功。');
-    await loadAll();
   }
 
   async function logout() {
@@ -156,6 +231,7 @@ function AdminApp() {
 
   async function createAdmin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError('');
     const res = await adminFetch('/accounts', { method: 'POST', body: JSON.stringify(adminForm) });
     if (!res.ok) {
       setError(await readError(res));
@@ -163,10 +239,12 @@ function AdminApp() {
     }
     setNotice('管理员账号已创建。');
     setAdminForm({ username: '', password: '', displayName: '' });
-    await loadAll();
+    setPages((prev) => ({ ...prev, accounts: 1 }));
+    await loadTab('accounts', 1);
   }
 
   async function toggleUser(user: UserProfile) {
+    setError('');
     const path = user.blacklisted ? `/users/${user.id}/unblacklist` : `/users/${user.id}/blacklist?reason=${encodeURIComponent('后台手动限制')}`;
     const res = await adminFetch(path, { method: 'PUT' });
     if (!res.ok) {
@@ -174,10 +252,11 @@ function AdminApp() {
       return;
     }
     setNotice(user.blacklisted ? '已解除用户限制。' : '已限制该用户。');
-    await loadAll();
+    await loadTab('users', pages.users);
   }
 
   async function handleReport(id: number, action: string) {
+    setError('');
     const res = await adminFetch(`/reports/${id}/handle`, {
       method: 'PUT',
       body: JSON.stringify({ status: '已处理', action, note: '管理员后台处理' })
@@ -187,21 +266,23 @@ function AdminApp() {
       return;
     }
     setNotice('举报已处理。');
-    await loadAll();
+    await loadTab('reports', pages.reports);
   }
 
   async function audit(kind: 'posts' | 'moments', id: number, status: '审核通过' | '已下架') {
+    setError('');
     const res = await adminFetch(`/${kind}/${id}/audit?status=${encodeURIComponent(status)}`, { method: 'PUT' });
     if (!res.ok) {
       setError(await readError(res));
       return;
     }
     setNotice('审核状态已更新。');
-    await loadAll();
+    await loadTab(kind, pages[kind]);
   }
 
   async function createCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError('');
     const res = await adminFetch('/categories', { method: 'POST', body: JSON.stringify(categoryForm) });
     if (!res.ok) {
       setError(await readError(res));
@@ -209,21 +290,24 @@ function AdminApp() {
     }
     setNotice('分类已创建。');
     setCategoryForm({ name: '', description: '', tags: '' });
-    await loadAll();
+    setPages((prev) => ({ ...prev, categories: 1 }));
+    await loadTab('categories', 1);
   }
 
   async function removeCategory(id: number) {
+    setError('');
     const res = await adminFetch(`/categories/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError(await readError(res));
       return;
     }
     setNotice('分类已删除。');
-    await loadAll();
+    await loadTab('categories', pages.categories);
   }
 
   async function createRegion(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError('');
     const res = await adminFetch('/regions', {
       method: 'POST',
       body: JSON.stringify({
@@ -238,17 +322,19 @@ function AdminApp() {
     }
     setNotice('地区已创建。');
     setRegionForm({ name: '', level: 'province', parentId: '' });
-    await loadAll();
+    setPages((prev) => ({ ...prev, regions: 1 }));
+    await loadTab('regions', 1);
   }
 
   async function removeRegion(id: number) {
+    setError('');
     const res = await adminFetch(`/regions/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError(await readError(res));
       return;
     }
     setNotice('地区已删除。');
-    await loadAll();
+    await loadTab('regions', pages.regions);
   }
 
   if (!session) {
@@ -256,10 +342,10 @@ function AdminApp() {
       <main className="adminStandalone">
         <section className="adminAuthCard">
           <div className="adminHero">
-            <ShieldCheck size={26} />
+            <ShieldCheck size={28} />
             <div>
               <h1>管理台登录</h1>
-              <p>这里是独立管理员后台，不与普通用户站点混用。</p>
+              <p>独立后台入口，只处理审核、基础配置和后台账号。</p>
             </div>
           </div>
           <form data-testid="admin-login-form" className="adminAuthForm" onSubmit={login}>
@@ -274,20 +360,10 @@ function AdminApp() {
     );
   }
 
-  const tabs: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
-    { key: 'accounts', label: '管理员账号', icon: <UserPlus size={16} /> },
-    { key: 'users', label: '用户管理', icon: <Users size={16} /> },
-    { key: 'reports', label: '举报处理', icon: <Flag size={16} /> },
-    { key: 'posts', label: '帖子审核', icon: <FileText size={16} /> },
-    { key: 'moments', label: '日常审核', icon: <Sparkles size={16} /> },
-    { key: 'categories', label: '分类管理', icon: <Tags size={16} /> },
-    { key: 'regions', label: '地区库', icon: <MapPin size={16} /> }
-  ];
-
   return (
-    <main className="adminStandalone">
+    <main className="adminStandalone adminWorkbench">
       <header className="adminTopbar">
-        <div>
+        <div className="adminTopbarTitle">
           <strong>萌宠集市管理台</strong>
           <span>{session.admin.displayName || session.admin.username}</span>
         </div>
@@ -296,65 +372,243 @@ function AdminApp() {
 
       <section className="adminLayout">
         <aside data-testid="admin-tabs" className="adminSidebar">
-          {tabs.map((item) => <button data-testid={`admin-tab-${item.key}`} key={item.key} type="button" className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key)}>{item.icon}{item.label}</button>)}
+          {tabs.map((item) => (
+            <button
+              data-testid={`admin-tab-${item.key}`}
+              key={item.key}
+              type="button"
+              className={tab === item.key ? 'active' : ''}
+              onClick={() => setTab(item.key)}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
         </aside>
+
         <section className="adminWorkspace">
+          <div className="workspaceHeader">
+            <div>
+              <h2>{currentTab.label}</h2>
+              <p>{currentTab.helper}</p>
+            </div>
+            <div className="workspaceMeta">
+              <span>第 {page} 页</span>
+              <span>每页 {size} 条</span>
+            </div>
+          </div>
+
           {loading && <p className="formNote">正在加载管理数据...</p>}
           {error && <p className="formError">{error}</p>}
           {notice && <p className="formNote">{notice}</p>}
 
-          {tab === 'accounts' && <AdminAccounts accounts={accounts} adminForm={adminForm} setAdminForm={setAdminForm} onSubmit={createAdmin} />}
-          {tab === 'users' && <UserList users={users} onToggle={toggleUser} />}
-          {tab === 'reports' && <ReportList reports={reports} onHandle={handleReport} />}
-          {tab === 'posts' && <PostList posts={posts} onAudit={(id, status) => audit('posts', id, status)} />}
-          {tab === 'moments' && <MomentList moments={moments} onAudit={(id, status) => audit('moments', id, status)} />}
-          {tab === 'categories' && <CategoryList categories={categories} categoryForm={categoryForm} setCategoryForm={setCategoryForm} onSubmit={createCategory} onDelete={removeCategory} />}
-          {tab === 'regions' && <RegionList regions={regions} regionForm={regionForm} setRegionForm={setRegionForm} onSubmit={createRegion} onDelete={removeRegion} />}
+          {tab === 'accounts' && (
+            <DataPanel title="后台账号列表" total={accounts.total} page={accounts} onPageChange={(next) => setPages((prev) => ({ ...prev, accounts: next }))}>
+              <form data-testid="admin-account-create" className="adminInlineForm adminInlineFormWide" onSubmit={createAdmin}>
+                <input value={adminForm.username} onChange={(event) => setAdminForm({ ...adminForm, username: event.target.value })} placeholder="管理员用户名" />
+                <input value={adminForm.displayName} onChange={(event) => setAdminForm({ ...adminForm, displayName: event.target.value })} placeholder="显示名称" />
+                <input value={adminForm.password} onChange={(event) => setAdminForm({ ...adminForm, password: event.target.value })} type="password" placeholder="初始密码" />
+                <button type="submit">新建管理员</button>
+              </form>
+              <div className="adminCardGrid adminCardGridTight">
+                {accounts.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.displayName || item.username}</strong>
+                    <p>{item.username}</p>
+                    <div className="adminCardMeta">
+                      <span>{item.enabled ? '启用中' : '已停用'}</span>
+                      <span>{item.lastLoginAt ? `最近登录 ${formatTime(item.lastLoginAt)}` : '尚未登录'}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
+
+          {tab === 'users' && (
+            <DataPanel title="普通用户" total={users.total} page={users} onPageChange={(next) => setPages((prev) => ({ ...prev, users: next }))}>
+              <div className="adminCardGrid">
+                {users.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.nickname}</strong>
+                    <p>{item.username || '未设置用户名'}{item.city ? ` · ${item.city}` : ''}</p>
+                    <div className="adminCardActions">
+                      <span className={item.blacklisted ? 'statusDanger' : 'statusOkay'}>{item.blacklisted ? '已限制' : '正常'}</span>
+                      <button data-testid={`admin-user-toggle-blacklist-${item.id}`} type="button" onClick={() => toggleUser(item)}>
+                        {item.blacklisted ? '解除限制' : '限制账号'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
+
+          {tab === 'reports' && (
+            <DataPanel title="举报处理" total={reports.total} page={reports} onPageChange={(next) => setPages((prev) => ({ ...prev, reports: next }))}>
+              <div className="adminCardGrid">
+                {reports.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.targetType === 'post' ? '交易帖' : '日常'} #{item.targetId}</strong>
+                    <p>{item.reason}</p>
+                    <div className="adminCardActions">
+                      <span>{item.status}</span>
+                      <div className="inlineActions">
+                        <button data-testid={`report-action-remove-${item.id}`} type="button" onClick={() => handleReport(item.id, 'removeTarget')}>下架内容</button>
+                        <button data-testid={`report-action-resolve-${item.id}`} type="button" onClick={() => handleReport(item.id, 'removeAndBlockAuthor')}>下架并限制作者</button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
+
+          {tab === 'posts' && (
+            <DataPanel title="帖子审核" total={posts.total} page={posts} onPageChange={(next) => setPages((prev) => ({ ...prev, posts: next }))}>
+              <div className="adminCardGrid">
+                {posts.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.title}</strong>
+                    <p>{item.author} · {item.category} · {item.city}</p>
+                    <p>{item.description}</p>
+                    <div className="adminCardActions">
+                      <span>{item.auditStatus || '审核通过'}</span>
+                      <div className="inlineActions">
+                        <button type="button" onClick={() => audit('posts', item.id, '审核通过')}>恢复展示</button>
+                        <button type="button" onClick={() => audit('posts', item.id, '已下架')}>下架</button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
+
+          {tab === 'moments' && (
+            <DataPanel title="日常审核" total={moments.total} page={moments} onPageChange={(next) => setPages((prev) => ({ ...prev, moments: next }))}>
+              <div className="adminCardGrid">
+                {moments.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.petName}</strong>
+                    <p>{item.author} · {item.category} · {item.city}</p>
+                    <p>{item.content}</p>
+                    <div className="adminCardActions">
+                      <span>{item.auditStatus || '审核通过'}</span>
+                      <div className="inlineActions">
+                        <button type="button" onClick={() => audit('moments', item.id, '审核通过')}>恢复展示</button>
+                        <button type="button" onClick={() => audit('moments', item.id, '已下架')}>下架</button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
+
+          {tab === 'categories' && (
+            <DataPanel title="分类配置" total={categories.total} page={categories} onPageChange={(next) => setPages((prev) => ({ ...prev, categories: next }))}>
+              <form data-testid="admin-category-create" className="adminInlineForm adminInlineFormWide" onSubmit={createCategory}>
+                <input value={categoryForm.name} onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })} placeholder="分类名称" />
+                <input value={categoryForm.tags} onChange={(event) => setCategoryForm({ ...categoryForm, tags: event.target.value })} placeholder="标签，逗号分隔" />
+                <input value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} placeholder="分类说明" />
+                <button type="submit">新增分类</button>
+              </form>
+              <div className="adminCardGrid adminCardGridTight">
+                {categories.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.name}</strong>
+                    <p>{item.description || '未填写说明'}</p>
+                    <div className="adminCardActions">
+                      <span>{item.tags || '无标签'}</span>
+                      <button type="button" onClick={() => removeCategory(item.id)}>删除</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
+
+          {tab === 'regions' && (
+            <DataPanel title="地区配置" total={regions.total} page={regions} onPageChange={(next) => setPages((prev) => ({ ...prev, regions: next }))}>
+              <form className="adminInlineForm adminInlineFormWide" onSubmit={createRegion}>
+                <input value={regionForm.name} onChange={(event) => setRegionForm({ ...regionForm, name: event.target.value })} placeholder="地区名称" />
+                <select value={regionForm.level} onChange={(event) => setRegionForm({ ...regionForm, level: event.target.value as RegionArea['level'] })}>
+                  <option value="province">省份</option>
+                  <option value="city">城市</option>
+                  <option value="district">区县</option>
+                </select>
+                <input value={regionForm.parentId} onChange={(event) => setRegionForm({ ...regionForm, parentId: event.target.value })} placeholder="父级 ID，省级可留空" />
+                <button type="submit">新增地区</button>
+              </form>
+              <div className="adminCardGrid adminCardGridTight">
+                {regions.items.map((item) => (
+                  <article className="adminCard" key={item.id}>
+                    <strong>{item.name}</strong>
+                    <p>{regionLevelLabel(item.level)}{item.parentId ? ` · 父级 ${item.parentId}` : ''}</p>
+                    <div className="adminCardActions">
+                      <span>排序 {item.sortOrder || 0}</span>
+                      <button type="button" onClick={() => removeRegion(item.id)}>删除</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </DataPanel>
+          )}
         </section>
       </section>
     </main>
   );
 }
 
-function AdminAccounts({ accounts, adminForm, setAdminForm, onSubmit }: { accounts: AdminProfile[]; adminForm: { username: string; password: string; displayName: string }; setAdminForm: (value: { username: string; password: string; displayName: string }) => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+function DataPanel<T>({ title, total, page, onPageChange, children }: { title: string; total: number; page: PageResult<T>; onPageChange: (page: number) => void; children: React.ReactNode }) {
   return (
-    <div className="adminSection">
-      <h2>管理员账号</h2>
-      <form data-testid="admin-account-create" className="adminInlineForm" onSubmit={onSubmit}>
-        <input value={adminForm.username} onChange={(event) => setAdminForm({ ...adminForm, username: event.target.value })} placeholder="管理员用户名" />
-        <input value={adminForm.displayName} onChange={(event) => setAdminForm({ ...adminForm, displayName: event.target.value })} placeholder="显示名称" />
-        <input value={adminForm.password} onChange={(event) => setAdminForm({ ...adminForm, password: event.target.value })} type="password" placeholder="初始密码" />
-        <button type="submit">新建管理员</button>
-      </form>
-      <div className="adminList">
-        {accounts.map((item) => <article className="adminCard" key={item.id}><strong>{item.displayName || item.username}</strong><p>{item.username}</p><span>{item.enabled ? '启用中' : '已停用'}</span></article>)}
+    <div className="adminPanel">
+      <div className="adminPanelHeader">
+        <div>
+          <strong>{title}</strong>
+          <span>共 {total} 条</span>
+        </div>
+      </div>
+      <div className="adminPanelBody">{children}</div>
+      <PaginationBar page={page.page} totalPages={page.totalPages} total={page.total} onPageChange={onPageChange} />
+    </div>
+  );
+}
+
+function PaginationBar({ page, totalPages, total, onPageChange }: { page: number; totalPages: number; total: number; onPageChange: (page: number) => void }) {
+  if (totalPages <= 1) {
+    return <div className="pagerBar pagerBarMuted"><span>共 {total} 条</span></div>;
+  }
+  return (
+    <div className="pagerBar">
+      <span>共 {total} 条</span>
+      <div className="pagerActions">
+        <button type="button" className="pagerButton" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+          <ChevronLeft size={16} />
+          上一页
+        </button>
+        <span className="pagerStatus">{page} / {totalPages}</span>
+        <button type="button" className="pagerButton" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+          下一页
+          <ChevronRight size={16} />
+        </button>
       </div>
     </div>
   );
 }
 
-function UserList({ users, onToggle }: { users: UserProfile[]; onToggle: (user: UserProfile) => void }) {
-  return <div className="adminSection"><h2>普通用户</h2><div className="adminList">{users.map((item) => <article className="adminCard" key={item.id}><strong>{item.nickname}</strong><p>{item.username || '未设置用户名'} {item.city ? `· ${item.city}` : ''}</p><div className="adminCardActions"><span>{item.blacklisted ? '已限制' : '正常'}</span><button data-testid={`admin-user-toggle-blacklist-${item.id}`} type="button" onClick={() => onToggle(item)}>{item.blacklisted ? '解除限制' : '限制账号'}</button></div></article>)}</div></div>;
+function regionLevelLabel(level: RegionArea['level']) {
+  if (level === 'province') return '省份';
+  if (level === 'city') return '城市';
+  return '区县';
 }
 
-function ReportList({ reports, onHandle }: { reports: ContentReport[]; onHandle: (id: number, action: string) => void }) {
-  return <div className="adminSection"><h2>举报处理</h2><div className="adminList">{reports.map((item) => <article className="adminCard" key={item.id}><strong>{item.targetType} #{item.targetId}</strong><p>{item.reason}</p><div className="adminCardActions"><span>{item.status}</span><button data-testid={`report-action-remove-${item.id}`} type="button" onClick={() => onHandle(item.id, 'removeTarget')}>下架内容</button><button data-testid={`report-action-resolve-${item.id}`} type="button" onClick={() => onHandle(item.id, 'removeAndBlockAuthor')}>下架并限制作者</button></div></article>)}</div></div>;
-}
-
-function PostList({ posts, onAudit }: { posts: MarketPost[]; onAudit: (id: number, status: '审核通过' | '已下架') => void }) {
-  return <div className="adminSection"><h2>帖子审核</h2><div className="adminList">{posts.map((item) => <article className="adminCard" key={item.id}><strong>{item.title}</strong><p>{item.author} · {item.category} · {item.city}</p><p>{item.description}</p><div className="adminCardActions"><span>{item.auditStatus || '审核通过'}</span><button type="button" onClick={() => onAudit(item.id, '审核通过')}>恢复展示</button><button type="button" onClick={() => onAudit(item.id, '已下架')}>下架</button></div></article>)}</div></div>;
-}
-
-function MomentList({ moments, onAudit }: { moments: Moment[]; onAudit: (id: number, status: '审核通过' | '已下架') => void }) {
-  return <div className="adminSection"><h2>日常审核</h2><div className="adminList">{moments.map((item) => <article className="adminCard" key={item.id}><strong>{item.petName}</strong><p>{item.author} · {item.category} · {item.city}</p><p>{item.content}</p><div className="adminCardActions"><span>{item.auditStatus || '审核通过'}</span><button type="button" onClick={() => onAudit(item.id, '审核通过')}>恢复展示</button><button type="button" onClick={() => onAudit(item.id, '已下架')}>下架</button></div></article>)}</div></div>;
-}
-
-function CategoryList({ categories, categoryForm, setCategoryForm, onSubmit, onDelete }: { categories: Category[]; categoryForm: { name: string; description: string; tags: string }; setCategoryForm: (value: { name: string; description: string; tags: string }) => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void; onDelete: (id: number) => void }) {
-  return <div className="adminSection"><h2>分类管理</h2><form data-testid="admin-category-create" className="adminInlineForm" onSubmit={onSubmit}><input value={categoryForm.name} onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })} placeholder="分类名称" /><input value={categoryForm.tags} onChange={(event) => setCategoryForm({ ...categoryForm, tags: event.target.value })} placeholder="标签" /><input value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} placeholder="分类说明" /><button type="submit">新增分类</button></form><div className="adminList">{categories.map((item) => <article className="adminCard" key={item.id}><strong>{item.name}</strong><p>{item.description || '未填写说明'}</p><div className="adminCardActions"><span>{item.tags || '无标签'}</span><button type="button" onClick={() => onDelete(item.id)}>删除</button></div></article>)}</div></div>;
-}
-
-function RegionList({ regions, regionForm, setRegionForm, onSubmit, onDelete }: { regions: RegionArea[]; regionForm: { name: string; level: RegionArea['level']; parentId: string }; setRegionForm: (value: { name: string; level: RegionArea['level']; parentId: string }) => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void; onDelete: (id: number) => void }) {
-  return <div className="adminSection"><h2>地区库</h2><form className="adminInlineForm" onSubmit={onSubmit}><input value={regionForm.name} onChange={(event) => setRegionForm({ ...regionForm, name: event.target.value })} placeholder="地区名称" /><select value={regionForm.level} onChange={(event) => setRegionForm({ ...regionForm, level: event.target.value as RegionArea['level'] })}><option value="province">省份</option><option value="city">城市</option><option value="district">区县</option></select><input value={regionForm.parentId} onChange={(event) => setRegionForm({ ...regionForm, parentId: event.target.value })} placeholder="父级 ID（省份可留空）" /><button type="submit">新增地区</button></form><div className="adminList">{regions.map((item) => <article className="adminCard" key={item.id}><strong>{item.name}</strong><p>{item.level} {item.parentId ? `· 父级 ${item.parentId}` : ''}</p><div className="adminCardActions"><span>排序 {item.sortOrder || 0}</span><button type="button" onClick={() => onDelete(item.id)}>删除</button></div></article>)}</div></div>;
+function formatTime(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

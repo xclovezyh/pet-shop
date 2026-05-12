@@ -2,6 +2,7 @@ package com.petshop.service;
 
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.moment.MomentCommentRequest;
 import com.petshop.dto.moment.MomentCommentResponse;
 import com.petshop.dto.moment.MomentRequest;
@@ -12,6 +13,7 @@ import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.MomentCommentRepository;
 import com.petshop.repository.MomentRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
 import org.springframework.stereotype.Service;
 
@@ -43,11 +45,14 @@ public class MomentService {
                 .collect(Collectors.toList());
     }
 
-    public List<MomentResponse> adminList(String adminNickname) {
-        return moments.findAll().stream()
+    public PageResponse<MomentResponse> adminList(String adminNickname, Integer page, Integer size) {
+        return PageSupport.slice(moments.findAll().stream()
                 .sorted(Comparator.comparing(Moment::getCreatedAt).reversed())
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()), page, size, this::toResponse);
+    }
+
+    public List<MomentResponse> adminList(String adminNickname) {
+        return adminList(adminNickname, 1, 50).getItems();
     }
 
     public MomentResponse detail(Long id) {

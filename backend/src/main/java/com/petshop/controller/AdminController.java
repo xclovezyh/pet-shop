@@ -7,6 +7,7 @@ import com.petshop.dto.admin.AdminLoginRequest;
 import com.petshop.dto.admin.AdminUserResponse;
 import com.petshop.dto.category.PetCategoryRequest;
 import com.petshop.dto.category.PetCategoryResponse;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.moment.MomentResponse;
 import com.petshop.dto.post.MarketPostResponse;
 import com.petshop.dto.reference.RegionAreaRequest;
@@ -86,9 +87,11 @@ public class AdminController {
     }
 
     @GetMapping("/accounts")
-    public ApiResponse<List<AdminUserResponse>> adminAccounts(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<AdminUserResponse>> adminAccounts(@CurrentAdmin AdminUser adminUser,
+                                                                      @RequestParam(defaultValue = "1") Integer page,
+                                                                      @RequestParam(defaultValue = "8") Integer size) {
         AdminGuard.requireAuthenticated(adminUser, "查看管理员账号");
-        return ApiResponse.success(adminAuthService.list());
+        return ApiResponse.success(adminAuthService.list(page, size));
     }
 
     @PostMapping("/accounts")
@@ -107,9 +110,11 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ApiResponse<List<UserResponse>> users(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<UserResponse>> users(@CurrentAdmin AdminUser adminUser,
+                                                         @RequestParam(defaultValue = "1") Integer page,
+                                                         @RequestParam(defaultValue = "10") Integer size) {
         AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看用户列表");
-        return ApiResponse.success(userService.list(currentAdmin.getUsername()));
+        return ApiResponse.success(userService.list(currentAdmin.getUsername(), page, size));
     }
 
     @PutMapping("/users/{id}/blacklist")
@@ -127,9 +132,11 @@ public class AdminController {
     }
 
     @GetMapping("/reports")
-    public ApiResponse<List<ContentReportResponse>> reports(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<ContentReportResponse>> reports(@CurrentAdmin AdminUser adminUser,
+                                                                    @RequestParam(defaultValue = "1") Integer page,
+                                                                    @RequestParam(defaultValue = "8") Integer size) {
         AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看举报记录");
-        return ApiResponse.success(contentReportService.adminReports(currentAdmin.getUsername()));
+        return ApiResponse.success(contentReportService.adminReports(currentAdmin.getUsername(), page, size));
     }
 
     @PutMapping("/reports/{id}/handle")
@@ -141,9 +148,11 @@ public class AdminController {
     }
 
     @GetMapping("/posts")
-    public ApiResponse<List<MarketPostResponse>> posts(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<MarketPostResponse>> posts(@CurrentAdmin AdminUser adminUser,
+                                                               @RequestParam(defaultValue = "1") Integer page,
+                                                               @RequestParam(defaultValue = "8") Integer size) {
         AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看帖子审核列表");
-        return ApiResponse.success(marketPostService.adminList(currentAdmin.getUsername()));
+        return ApiResponse.success(marketPostService.adminList(currentAdmin.getUsername(), page, size));
     }
 
     @PutMapping("/posts/{id}/audit")
@@ -155,9 +164,11 @@ public class AdminController {
     }
 
     @GetMapping("/moments")
-    public ApiResponse<List<MomentResponse>> moments(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<MomentResponse>> moments(@CurrentAdmin AdminUser adminUser,
+                                                             @RequestParam(defaultValue = "1") Integer page,
+                                                             @RequestParam(defaultValue = "8") Integer size) {
         AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看日常审核列表");
-        return ApiResponse.success(momentService.adminList(currentAdmin.getUsername()));
+        return ApiResponse.success(momentService.adminList(currentAdmin.getUsername(), page, size));
     }
 
     @PutMapping("/moments/{id}/audit")
@@ -169,9 +180,11 @@ public class AdminController {
     }
 
     @GetMapping("/categories")
-    public ApiResponse<List<PetCategoryResponse>> categories(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<PetCategoryResponse>> categories(@CurrentAdmin AdminUser adminUser,
+                                                                     @RequestParam(defaultValue = "1") Integer page,
+                                                                     @RequestParam(defaultValue = "10") Integer size) {
         AdminGuard.requireAuthenticated(adminUser, "查看分类配置");
-        return ApiResponse.success(petCategoryService.list());
+        return ApiResponse.success(petCategoryService.adminList(page, size));
     }
 
     @PostMapping("/categories")
@@ -197,9 +210,11 @@ public class AdminController {
     }
 
     @GetMapping("/regions")
-    public ApiResponse<List<RegionAreaResponse>> regions(@CurrentAdmin AdminUser adminUser) {
+    public ApiResponse<PageResponse<RegionAreaResponse>> regions(@CurrentAdmin AdminUser adminUser,
+                                                                 @RequestParam(defaultValue = "1") Integer page,
+                                                                 @RequestParam(defaultValue = "10") Integer size) {
         AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看地区库");
-        return ApiResponse.success(referenceDataService.regionAdminList(currentAdmin.getUsername()));
+        return ApiResponse.success(referenceDataService.regionAdminList(currentAdmin.getUsername(), page, size));
     }
 
     @PostMapping("/regions")

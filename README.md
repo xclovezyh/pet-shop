@@ -1,22 +1,20 @@
 # 萌宠集市 Pet Shop
 
-一个面向宠物交易、领养、交流和站内私信的 Web 项目原型，包含：
+一个面向宠物交易、领养、交流和站内私信的 Web 项目原型，包含普通用户前台与独立管理后台两套入口。
 
-- 普通用户前台：浏览、发布、收藏、评论、私信、交易意向
-- 独立管理员后台：举报处理、内容审核、分类管理、地区库管理、普通用户限制
-
-当前项目已经完成“普通用户体系”和“管理员体系”拆分：
+当前项目已经完成以下基础边界拆分：
 
 - 普通用户使用 `app_user` 与 `user_session`
 - 管理员使用 `admin_user` 与 `admin_session`
-- 前台与后台分离，不再通过普通用户菜单进入管理台
+- 主站与管理台分离，不再从普通用户页面进入后台
+- 管理台列表接口统一支持分页，避免页面堆叠过多数据
 
 ## 目录结构
 
 ```text
 pet-shop
-├─ backend   # Spring Boot API
-├─ frontend  # Vite + React 前端
+├─ backend    # Spring Boot API
+├─ frontend   # Vite + React 前端
 ├─ README.md
 ├─ BACKEND_DEVELOPMENT_SPEC.md
 └─ DEVELOPMENT_PLAN.md
@@ -82,7 +80,7 @@ npm run dev
 http://127.0.0.1:5173/index.html
 ```
 
-独立管理员后台：
+独立管理后台：
 
 ```text
 http://127.0.0.1:5173/admin.html
@@ -106,7 +104,7 @@ http://127.0.0.1:5173/admin.html
 
 ### 管理员
 
-管理员必须走独立后台登录入口，不允许通过普通用户登录页登录。
+管理员必须走独立后台登录入口，不允许通过普通用户登录页进入。
 
 相关接口：
 
@@ -119,7 +117,42 @@ http://127.0.0.1:5173/admin.html
 - 用户名：`superadmin`
 - 密码：`change-me-admin-password`
 
-后续新增管理员账号，应通过已登录管理员在后台创建，不再通过普通用户升权。
+后续新增管理员账号，应由已登录管理员在后台创建，不再通过普通用户升权。
+
+## 管理台分页接口
+
+以下管理接口已统一支持 `page`、`size` 分页参数，并返回统一分页结构：
+
+- `GET /api/admin/accounts`
+- `GET /api/admin/users`
+- `GET /api/admin/reports`
+- `GET /api/admin/posts`
+- `GET /api/admin/moments`
+- `GET /api/admin/categories`
+- `GET /api/admin/regions`
+
+分页返回结构：
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [],
+    "total": 0,
+    "page": 1,
+    "size": 10,
+    "totalPages": 0,
+    "hasNext": false,
+    "hasPrevious": false
+  }
+}
+```
+
+说明：
+
+- `page` 从 1 开始
+- `size` 默认按接口配置取值
+- 最大 `size` 限制为 50
 
 ## 当前重要约束
 
@@ -127,10 +160,11 @@ http://127.0.0.1:5173/admin.html
 - 普通用户前台与管理后台分入口、分登录、分接口
 - 普通用户不能在前台看到后台入口
 - 管理台只处理管理事务，不承载普通用户业务页面
+- 列表页优先分页展示，避免单页堆积全部数据
 
 ## 测试与构建
 
-后端编译：
+后端测试：
 
 ```powershell
 cd backend

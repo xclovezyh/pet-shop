@@ -2,6 +2,7 @@ package com.petshop.service;
 
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.LoginByPasswordRequest;
 import com.petshop.dto.user.LoginBySmsRequest;
@@ -12,6 +13,7 @@ import com.petshop.dto.user.VerifyCodeResponse;
 import com.petshop.model.AppUser;
 import com.petshop.repository.AppUserRepository;
 import com.petshop.support.ContentSafety;
+import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -42,11 +44,15 @@ public class UserService {
         this.userSessionService = userSessionService;
     }
 
-    public List<UserResponse> list(String adminNickname) {
-        return users.findAll().stream()
+    public PageResponse<UserResponse> list(String adminNickname, Integer page, Integer size) {
+        return PageSupport.slice(users.findAll().stream()
                 .filter(user -> !UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole()))
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+                .sorted((left, right) -> right.getId().compareTo(left.getId()))
+                .collect(Collectors.toList()), page, size, this::toResponse);
+    }
+
+    public List<UserResponse> list(String adminNickname) {
+        return list(adminNickname, 1, 50).getItems();
     }
 
     public VerifyCodeResponse sendVerifyCode(String phoneValue) {

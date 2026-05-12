@@ -6,8 +6,10 @@ import com.petshop.dto.admin.AdminAuthSessionResponse;
 import com.petshop.dto.admin.AdminCreateRequest;
 import com.petshop.dto.admin.AdminLoginRequest;
 import com.petshop.dto.admin.AdminUserResponse;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.model.AdminUser;
 import com.petshop.repository.AdminUserRepository;
+import com.petshop.support.PageSupport;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -51,10 +53,10 @@ public class AdminAuthService {
         return toResponse(adminUser);
     }
 
-    public List<AdminUserResponse> list() {
-        return admins.findAll().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public PageResponse<AdminUserResponse> list(Integer page, Integer size) {
+        return PageSupport.slice(admins.findAll().stream()
+                .sorted((left, right) -> right.getId().compareTo(left.getId()))
+                .collect(Collectors.toList()), page, size, this::toResponse);
     }
 
     public AdminUserResponse create(AdminCreateRequest request) {

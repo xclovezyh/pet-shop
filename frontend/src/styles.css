@@ -2196,3 +2196,216 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.inlinePager,
+.pagerBar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.inlinePager span,
+.pagerBar span {
+  color: #5f7269;
+  font-size: 13px;
+}
+
+.inlinePagerActions,
+.pagerActions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.inlinePagerActions button,
+.pagerButton {
+  align-items: center;
+  background: #eef4f1;
+  border: 1px solid #d3dfd8;
+  border-radius: 6px;
+  color: #214737;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.inlinePagerActions button:disabled,
+.pagerButton:disabled {
+  opacity: 0.45;
+}
+
+.inlinePager strong,
+.pagerStatus {
+  color: #214737;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.inlinePagerMuted,
+.pagerBarMuted {
+  justify-content: flex-end;
+}
+
+.adminWorkbench {
+  padding: 20px;
+}
+
+.adminTopbarTitle {
+  display: grid;
+  gap: 4px;
+}
+
+.workspaceHeader {
+  align-items: end;
+  border-bottom: 1px solid #e5ece8;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+}
+
+.workspaceHeader h2 {
+  margin: 0 0 4px;
+}
+
+.workspaceHeader p {
+  color: #62756b;
+  margin: 0;
+}
+
+.workspaceMeta {
+  display: flex;
+  gap: 10px;
+}
+
+.workspaceMeta span {
+  background: #eef4f1;
+  border: 1px solid #d5e1da;
+  border-radius: 999px;
+  color: #2b4d3f;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.adminSidebar {
+  padding: 14px;
+}
+
+.adminSidebar button {
+  min-height: 46px;
+}
+
+.adminSidebar button span {
+  min-width: 0;
+}
+
+.adminPanel {
+  background: #fbfcfb;
+  border: 1px solid #e0e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.adminPanelHeader {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.adminPanelHeader strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.adminPanelHeader span {
+  color: #5f7269;
+  font-size: 13px;
+}
+
+.adminPanelBody {
+  display: grid;
+  gap: 16px;
+}
+
+.adminInlineFormWide {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+
+.adminCardGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adminCardGridTight {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.adminCard {
+  background: #fff;
+  gap: 10px;
+  min-height: 152px;
+}
+
+.adminCard strong {
+  color: #213930;
+}
+
+.adminCardMeta {
+  color: #60736a;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.statusDanger {
+  color: #a44135;
+  font-weight: 900;
+}
+
+.statusOkay {
+  color: #1f5b46;
+  font-weight: 900;
+}
+
+@media (max-width: 1180px) {
+  .adminCardGrid,
+  .adminCardGridTight {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .workspaceHeader,
+  .pagerBar,
+  .inlinePager {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspaceMeta,
+  .pagerActions,
+  .inlinePagerActions {
+    width: 100%;
+  }
+
+  .adminInlineFormWide {
+    grid-template-columns: 1fr;
+  }
+}

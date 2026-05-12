@@ -747,6 +747,16 @@ function CategoriesPage({ loading, categories }: { loading: boolean; categories:
 }
 
 function GuidePage({ categoryLoading, petLoading, categories, pets, onOpenPet }: { categoryLoading: boolean; petLoading: boolean; categories: Category[]; pets: Pet[]; onOpenPet: (pet: Pet) => void }) {
+  const [categoryPage, setCategoryPage] = React.useState(1);
+  const [petPage, setPetPage] = React.useState(1);
+  const categoryPageSize = 6;
+  const petPageSize = 6;
+  const categoryView = paginateItems(categories, categoryPage, categoryPageSize);
+  const petView = paginateItems(pets, petPage, petPageSize);
+
+  React.useEffect(() => setCategoryPage(1), [categories.length]);
+  React.useEffect(() => setPetPage(1), [pets.length]);
+
   return (
     <section className="page section guidePage">
       <SectionTitle icon={<Tags />} title="宠物百科" helper="分类库和宠物资料合并展示，发布内容时可参考平台分类" />
@@ -755,7 +765,7 @@ function GuidePage({ categoryLoading, petLoading, categories, pets, onOpenPet }:
           <h3>分类库</h3>
           <div className="categoryGrid compactGrid">
             {categoryLoading && <LoadingState label="正在加载分类库" />}
-            {categories.map((category) => (
+            {categoryView.items.map((category) => (
               <article className="category" key={category.id}>
                 <h3>{category.name}</h3>
                 <p>{category.description}</p>
@@ -764,14 +774,16 @@ function GuidePage({ categoryLoading, petLoading, categories, pets, onOpenPet }:
             ))}
             {!categoryLoading && categories.length === 0 && <EmptyState title="没有匹配的分类" helper="换个关键词或清空筛选条件再试。" />}
           </div>
+          {!categoryLoading && categories.length > 0 && <InlinePager page={categoryView.page} totalPages={categoryView.totalPages} total={categories.length} onChange={setCategoryPage} />}
         </div>
         <div>
           <h3>宠物资料</h3>
           <div className="petGrid compactGrid">
             {petLoading && <LoadingState label="正在加载宠物资料" />}
-            {pets.map((pet) => <PetCard key={pet.id} pet={pet} onOpen={onOpenPet} />)}
+            {petView.items.map((pet) => <PetCard key={pet.id} pet={pet} onOpen={onOpenPet} />)}
             {!petLoading && pets.length === 0 && <EmptyState title="没有匹配的宠物" helper="可以调整分类、城市、价格或关键词筛选。" />}
           </div>
+          {!petLoading && pets.length > 0 && <InlinePager page={petView.page} totalPages={petView.totalPages} total={pets.length} onChange={setPetPage} />}
         </div>
       </div>
     </section>
@@ -819,13 +831,19 @@ function MarketPage(props: {
   onToggleFavorite: (post: MarketPost) => void;
   onPublished: () => void;
 }) {
+  const [page, setPage] = React.useState(1);
+  const pageView = paginateItems(props.posts, page, 6);
+
+  React.useEffect(() => setPage(1), [props.posts.length, props.searchQuery, props.categoryFilter, props.cityFilter, props.typeFilter, props.minPrice, props.maxPrice, props.sortMode]);
+
   return (
     <section className="page section split">
       <div>
         <SectionTitle icon={<Plus />} title="售卖 / 互换 / 领养帖子" helper="筛选交易内容，点击帖子查看详情并发起站内私信" />
         <FilterBar {...props} />
         {props.loading && <LoadingState label="正在加载交易帖子" />}
-        <PostList posts={props.posts} currentUser={props.currentUser} favoriteIds={props.favoriteIds} onOpen={props.onOpenPost} onToggleFavorite={props.onToggleFavorite} />
+        <PostList posts={pageView.items} currentUser={props.currentUser} favoriteIds={props.favoriteIds} onOpen={props.onOpenPost} onToggleFavorite={props.onToggleFavorite} />
+        {!props.loading && props.posts.length > 0 && <InlinePager page={pageView.page} totalPages={pageView.totalPages} total={props.posts.length} onChange={setPage} />}
       </div>
       <Composer categories={props.categories} referenceData={props.referenceData} currentUser={props.currentUser} onSuccess={props.onPublished} />
     </section>
@@ -833,11 +851,17 @@ function MarketPage(props: {
 }
 
 function MomentsPage({ loading, moments, onOpen }: { loading: boolean; moments: Moment[]; onOpen: (moment: Moment) => void }) {
+  const [page, setPage] = React.useState(1);
+  const pageView = paginateItems(moments, page, 8);
+
+  React.useEffect(() => setPage(1), [moments.length]);
+
   return (
     <section className="page section">
       <SectionTitle icon={<Camera />} title="用户日常分享" helper="记录宠物近况、养护经验和可爱的日常瞬间" />
       {loading && <LoadingState label="正在加载用户日常" />}
-      {!loading && <MomentList moments={moments} onOpen={onOpen} />}
+      {!loading && <MomentList moments={pageView.items} onOpen={onOpen} />}
+      {!loading && moments.length > 0 && <InlinePager page={pageView.page} totalPages={pageView.totalPages} total={moments.length} onChange={setPage} />}
     </section>
   );
 }
@@ -862,10 +886,18 @@ function MinePage(props: {
 }
 
 function FavoritesPage({ currentUser, posts, favoriteIds, onOpen, onToggleFavorite }: { currentUser: UserProfile | null; posts: MarketPost[]; favoriteIds: Set<number>; onOpen: (post: MarketPost) => void; onToggleFavorite: (post: MarketPost) => void }) {
+  const [page, setPage] = React.useState(1);
+  const pageView = paginateItems(posts, page, 6);
+
+  React.useEffect(() => setPage(1), [posts.length]);
+
   return (
     <section className="page section">
       <SectionTitle icon={<Heart />} title="我的收藏" helper="收藏会保存到数据库，方便后续继续查看和私信沟通" />
-      {!currentUser ? <EmptyState title="登录后查看收藏" helper="收藏帖子需要登录，数据会保存在站内账号下。" /> : <PostList posts={posts} currentUser={currentUser} favoriteIds={favoriteIds} onOpen={onOpen} onToggleFavorite={onToggleFavorite} />}
+      {!currentUser ? <EmptyState title="登录后查看收藏" helper="收藏帖子需要登录，数据会保存在站内账号下。" /> : <>
+        <PostList posts={pageView.items} currentUser={currentUser} favoriteIds={favoriteIds} onOpen={onOpen} onToggleFavorite={onToggleFavorite} />
+        {posts.length > 0 && <InlinePager page={pageView.page} totalPages={pageView.totalPages} total={posts.length} onChange={setPage} />}
+      </>}
     </section>
   );
 }
@@ -2022,6 +2054,33 @@ function formatTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function paginateItems<T>(items: T[], page: number, size: number) {
+  const totalPages = Math.max(1, Math.ceil(items.length / size));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const start = (safePage - 1) * size;
+  return {
+    items: items.slice(start, start + size),
+    page: safePage,
+    totalPages
+  };
+}
+
+function InlinePager({ page, totalPages, total, onChange }: { page: number; totalPages: number; total: number; onChange: (page: number) => void }) {
+  if (totalPages <= 1) {
+    return <div className="inlinePager inlinePagerMuted"><span>共 {total} 条</span></div>;
+  }
+  return (
+    <div className="inlinePager">
+      <span>共 {total} 条</span>
+      <div className="inlinePagerActions">
+        <button type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>上一页</button>
+        <strong>{page} / {totalPages}</strong>
+        <button type="button" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>下一页</button>
+      </div>
+    </div>
+  );
 }
 
 function statusClass(status: string) {
