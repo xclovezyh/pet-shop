@@ -109,7 +109,7 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.loginByPassword(request))
                 .isInstanceOf(ApiException.class)
-                .hasMessage("请使用管理员登录入口")
+                .hasMessage(ApiErrorCode.LOGIN_FAILED.getMessage())
                 .extracting(error -> ((ApiException) error).getErrorCode())
                 .isEqualTo(ApiErrorCode.LOGIN_FAILED);
 

@@ -105,7 +105,7 @@ public class UserService {
                 .orElseGet(() -> users.findByPhone(account)
                         .orElseThrow(() -> new ApiException(ApiErrorCode.LOGIN_FAILED)));
         if (UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole())) {
-            throw new ApiException(ApiErrorCode.LOGIN_FAILED, "请使用管理员登录入口");
+            throw new ApiException(ApiErrorCode.LOGIN_FAILED);
         }
         if (isBlank(user.getPasswordHash()) || !PASSWORD_ENCODER.matches(password, user.getPasswordHash())) {
             throw new ApiException(ApiErrorCode.LOGIN_FAILED);
