@@ -62,12 +62,6 @@ class ContentReportServiceTest {
 
     @Test
     void handleShouldRemoveTargetAndBlacklistAuthor() {
-        AppUser admin = new AppUser();
-        admin.setNickname("admin");
-        admin.setRole("SUPER_ADMIN");
-        admin.setBlacklisted(false);
-        when(users.findByNickname("admin")).thenReturn(Optional.of(admin));
-
         ContentReport report = new ContentReport();
         report.setId(8L);
         report.setTargetType("post");

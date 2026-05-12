@@ -5,7 +5,10 @@ import com.petshop.dto.moment.MomentCommentRequest;
 import com.petshop.dto.moment.MomentCommentResponse;
 import com.petshop.dto.moment.MomentRequest;
 import com.petshop.dto.moment.MomentResponse;
+import com.petshop.model.AppUser;
 import com.petshop.service.MomentService;
+import com.petshop.support.CurrentUser;
+import com.petshop.support.UserGuard;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,8 +36,9 @@ public class MomentController {
     }
 
     @GetMapping("/admin")
-    public ApiResponse<List<MomentResponse>> adminList(@RequestParam String admin) {
-        return ApiResponse.success(momentService.adminList(admin));
+    public ApiResponse<List<MomentResponse>> adminList(@CurrentUser AppUser currentUser) {
+        AppUser user = UserGuard.requireSuperAdmin(currentUser);
+        return ApiResponse.success(momentService.adminList(user.getNickname()));
     }
 
     @GetMapping("/{id}")
@@ -43,7 +47,10 @@ public class MomentController {
     }
 
     @PostMapping
-    public ApiResponse<MomentResponse> create(@RequestBody MomentRequest request) {
+    public ApiResponse<MomentResponse> create(@CurrentUser AppUser currentUser,
+                                              @RequestBody MomentRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "发布日常");
+        request.setAuthor(user.getNickname());
         return ApiResponse.success("日常发布成功", momentService.create(request));
     }
 
@@ -59,27 +66,34 @@ public class MomentController {
 
     @PostMapping("/{id}/comments")
     public ApiResponse<MomentCommentResponse> comment(@PathVariable Long id,
+                                                      @CurrentUser AppUser currentUser,
                                                       @RequestBody MomentCommentRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "评论日常");
+        request.setAuthor(user.getNickname());
         return ApiResponse.success("评论成功", momentService.createComment(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id, @RequestParam String author) {
-        momentService.delete(id, author);
+    public ApiResponse<Void> delete(@PathVariable Long id, @CurrentUser AppUser currentUser) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "删除日常");
+        momentService.delete(id, user.getNickname());
         return ApiResponse.success("日常已删除", null);
     }
 
     @PutMapping("/{id}")
     public ApiResponse<MomentResponse> update(@PathVariable Long id,
-                                              @RequestParam String author,
+                                              @CurrentUser AppUser currentUser,
                                               @RequestBody MomentRequest request) {
-        return ApiResponse.success("日常已更新", momentService.update(id, author, request));
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "编辑日常");
+        request.setAuthor(user.getNickname());
+        return ApiResponse.success("日常已更新", momentService.update(id, user.getNickname(), request));
     }
 
     @PutMapping("/{id}/audit")
     public ApiResponse<MomentResponse> audit(@PathVariable Long id,
-                                             @RequestParam String admin,
+                                             @CurrentUser AppUser currentUser,
                                              @RequestParam String status) {
-        return ApiResponse.success("审核状态已更新", momentService.audit(id, admin, status));
+        AppUser user = UserGuard.requireSuperAdmin(currentUser);
+        return ApiResponse.success("审核状态已更新", momentService.audit(id, user.getNickname(), status));
     }
 }

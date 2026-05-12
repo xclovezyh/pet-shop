@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
 import com.petshop.api.GlobalExceptionHandler;
+import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.RegisterUserRequest;
 import com.petshop.dto.user.UserResponse;
+import com.petshop.service.AdminSessionService;
 import com.petshop.service.UserService;
+import com.petshop.service.UserSessionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -32,12 +35,22 @@ class UserControllerTest {
     @MockBean
     private UserService userService;
 
+    @MockBean
+    private UserSessionService userSessionService;
+
+    @MockBean
+    private AdminSessionService adminSessionService;
+
     @Test
     void registerShouldReturnSuccessEnvelope() throws Exception {
-        UserResponse response = new UserResponse();
-        response.setId(1L);
-        response.setUsername("alice123");
-        response.setNickname("alice");
+        UserResponse user = new UserResponse();
+        user.setId(1L);
+        user.setUsername("alice123");
+        user.setNickname("alice");
+
+        AuthSessionResponse response = new AuthSessionResponse();
+        response.setToken("token-1");
+        response.setUser(user);
 
         when(userService.register(any(RegisterUserRequest.class))).thenReturn(response);
 
@@ -54,7 +67,8 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.username").value("alice123"));
+                .andExpect(jsonPath("$.data.token").value("token-1"))
+                .andExpect(jsonPath("$.data.user.username").value("alice123"));
     }
 
     @Test

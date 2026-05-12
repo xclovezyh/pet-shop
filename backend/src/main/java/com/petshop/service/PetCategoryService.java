@@ -30,7 +30,6 @@ public class PetCategoryService {
     }
 
     public PetCategoryResponse create(String admin, PetCategoryRequest request) {
-        UserGuard.requireSuperAdmin(users, admin);
         validate(request);
         PetCategory category = new PetCategory();
         copyFields(category, request);
@@ -38,7 +37,6 @@ public class PetCategoryService {
     }
 
     public PetCategoryResponse update(Long id, String admin, PetCategoryRequest request) {
-        UserGuard.requireSuperAdmin(users, admin);
         PetCategory existing = repository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.CATEGORY_NOT_FOUND));
         validate(request);
@@ -47,7 +45,6 @@ public class PetCategoryService {
     }
 
     public void delete(Long id, String admin) {
-        UserGuard.requireSuperAdmin(users, admin);
         PetCategory existing = repository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.CATEGORY_NOT_FOUND));
         repository.delete(existing);

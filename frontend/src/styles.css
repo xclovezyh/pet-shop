@@ -2015,3 +2015,184 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+.adminStandalone {
+  background: #f4f7f5;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.adminAuthCard,
+.adminWorkspace,
+.adminSidebar,
+.adminTopbar {
+  background: #fff;
+  border: 1px solid #dce4de;
+  border-radius: 8px;
+}
+
+.adminAuthCard {
+  margin: 64px auto;
+  max-width: 520px;
+  padding: 28px;
+}
+
+.adminHero {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.adminHero h1 {
+  margin: 0 0 4px;
+}
+
+.adminHero p {
+  color: #587166;
+  margin: 0;
+}
+
+.adminAuthForm,
+.adminInlineForm {
+  display: grid;
+  gap: 12px;
+}
+
+.adminAuthForm label {
+  color: #325546;
+  display: grid;
+  gap: 6px;
+}
+
+.adminLayout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.adminTopbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+}
+
+.adminTopbar strong,
+.adminSection h2 {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.adminTopbar span {
+  color: #587166;
+  font-size: 14px;
+}
+
+.ghostButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #dce4de;
+  border-radius: 6px;
+  color: #1f4d3c;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.adminSidebar {
+  display: grid;
+  gap: 8px;
+  height: fit-content;
+  padding: 12px;
+}
+
+.adminSidebar button {
+  align-items: center;
+  background: #f4f7f5;
+  border: 0;
+  border-radius: 6px;
+  color: #244b3b;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.adminSidebar button.active {
+  background: #1f5b46;
+  color: #fff;
+}
+
+.adminWorkspace {
+  padding: 20px;
+}
+
+.adminSection {
+  display: grid;
+  gap: 16px;
+}
+
+.adminInlineForm {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.adminInlineForm input,
+.adminInlineForm select,
+.adminAuthForm input {
+  background: #fff;
+  border: 1px solid #cfdad3;
+  border-radius: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.adminInlineForm button,
+.adminAuthForm button,
+.adminCardActions button {
+  background: #1f5b46;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  padding: 10px 14px;
+}
+
+.adminList {
+  display: grid;
+  gap: 12px;
+}
+
+.adminCard {
+  background: #f9fbfa;
+  border: 1px solid #dce4de;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.adminCard p {
+  color: #587166;
+  margin: 0;
+}
+
+.adminCardActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+@media (max-width: 960px) {
+  .adminLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .adminInlineForm {
+    grid-template-columns: 1fr;
+  }
+}

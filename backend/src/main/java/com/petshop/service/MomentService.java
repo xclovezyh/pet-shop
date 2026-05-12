@@ -44,7 +44,6 @@ public class MomentService {
     }
 
     public List<MomentResponse> adminList(String adminNickname) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         return moments.findAll().stream()
                 .sorted(Comparator.comparing(Moment::getCreatedAt).reversed())
                 .map(this::toResponse)
@@ -128,7 +127,6 @@ public class MomentService {
     }
 
     public MomentResponse audit(Long id, String adminNickname, String status) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         if (!AUDIT_APPROVED.equals(status) && !AUDIT_REMOVED.equals(status)) {
             throw new ApiException(ApiErrorCode.MOMENT_AUDIT_STATUS_INVALID);
         }

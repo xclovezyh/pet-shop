@@ -1,9 +1,9 @@
 package com.petshop.service;
 
+import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
 import com.petshop.dto.user.RegisterUserRequest;
-import com.petshop.dto.user.UserResponse;
 import com.petshop.dto.user.VerifyCodeResponse;
 import com.petshop.model.AppUser;
 import com.petshop.repository.AppUserRepository;
@@ -29,7 +29,7 @@ class UserServiceTest {
     private AppUserRepository users;
 
     @Mock
-    private AdminAccountService adminAccountService;
+    private UserSessionService userSessionService;
 
     @InjectMocks
     private UserService userService;
@@ -44,8 +44,6 @@ class UserServiceTest {
         request.setNickname("alice");
         request.setCode(code.getCode());
 
-        when(adminAccountService.isConfiguredAdmin("alice123")).thenReturn(false);
-        when(adminAccountService.isConfiguredAdmin("alice")).thenReturn(false);
         when(users.existsByUsername("alice123")).thenReturn(false);
         when(users.existsByPhone("13800138000")).thenReturn(false);
         when(users.save(any(AppUser.class))).thenAnswer(invocation -> {
@@ -54,33 +52,16 @@ class UserServiceTest {
             return user;
         });
 
-        UserResponse response = userService.register(request);
+        when(userSessionService.createSession(any(AppUser.class))).thenReturn("token-1");
 
-        assertThat(response.getId()).isEqualTo(1L);
-        assertThat(response.getUsername()).isEqualTo("alice123");
-        assertThat(response.getPhone()).isEqualTo("13800138000");
-        assertThat(response.getRole()).isEqualTo("USER");
+        AuthSessionResponse response = userService.register(request);
+
+        assertThat(response.getToken()).isEqualTo("token-1");
+        assertThat(response.getUser().getId()).isEqualTo(1L);
+        assertThat(response.getUser().getUsername()).isEqualTo("alice123");
+        assertThat(response.getUser().getPhone()).isEqualTo("13800138000");
+        assertThat(response.getUser().getRole()).isEqualTo("USER");
         verify(users).save(any(AppUser.class));
-    }
-
-    @Test
-    void registerShouldRejectConfiguredAdminUsername() {
-        VerifyCodeResponse code = userService.sendVerifyCode("13800138000");
-        RegisterUserRequest request = new RegisterUserRequest();
-        request.setUsername("superadmin");
-        request.setPassword("secret123");
-        request.setPhone("13800138000");
-        request.setNickname("normal");
-        request.setCode(code.getCode());
-
-        when(adminAccountService.isConfiguredAdmin("superadmin")).thenReturn(true);
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isInstanceOf(ApiException.class)
-                .extracting(error -> ((ApiException) error).getErrorCode())
-                .isEqualTo(ApiErrorCode.SUPER_ADMIN_REGISTER_FORBIDDEN);
-
-        verify(users, never()).save(any(AppUser.class));
     }
 
     @Test
@@ -107,5 +88,31 @@ class UserServiceTest {
                 .hasMessage("账号违规")
                 .extracting(error -> ((ApiException) error).getErrorCode())
                 .isEqualTo(ApiErrorCode.ACCOUNT_BLOCKED);
+    }
+
+    @Test
+    void loginByPasswordShouldRejectSuperAdminAccount() {
+        AppUser user = new AppUser();
+        user.setId(3L);
+        user.setUsername("superadmin");
+        user.setPhone("13800138009");
+        user.setNickname("superadmin");
+        user.setPasswordHash(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("secret123"));
+        user.setRole("SUPER_ADMIN");
+        user.setBlacklisted(false);
+
+        when(users.findByUsername("superadmin")).thenReturn(Optional.of(user));
+
+        com.petshop.dto.user.LoginByPasswordRequest request = new com.petshop.dto.user.LoginByPasswordRequest();
+        request.setAccount("superadmin");
+        request.setPassword("secret123");
+
+        assertThatThrownBy(() -> userService.loginByPassword(request))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("请使用管理员登录入口")
+                .extracting(error -> ((ApiException) error).getErrorCode())
+                .isEqualTo(ApiErrorCode.LOGIN_FAILED);
+
+        verify(users, never()).save(any(AppUser.class));
     }
 }

@@ -1,48 +1,43 @@
 # 萌宠集市 Pet Shop
 
-一个集宠物分类、宠物展示、交易发布、站内私信、用户日常、收藏、举报与管理审核于一体的 Web 项目原型。
+一个面向宠物交易、领养、交流和站内私信的 Web 项目原型，包含：
 
-完整开发计划见 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)。
+- 普通用户前台：浏览、发布、收藏、评论、私信、交易意向
+- 独立管理员后台：举报处理、内容审核、分类管理、地区库管理、普通用户限制
 
-## 功能概览
+当前项目已经完成“普通用户体系”和“管理员体系”拆分：
 
-- 宠物分类库、宠物展示、宠物详情相册
-- 售卖、互换、领养、闲置、寄养等交易帖发布
-- 交易意向单、交易状态流转、我的发布管理
-- 用户日常发布、评论、点赞、分享
-- 昵称登录、个人主页、头像、简介、常驻城市
-- 站内私信、未读数、收藏帖子
-- 图片上传、格式校验、大小限制、多图预览
-- 内容安全校验、举报、黑名单、后台审核
-- 管理后台：用户管理、举报处理、帖子/日常下架与恢复
+- 普通用户使用 `app_user` 与 `user_session`
+- 管理员使用 `admin_user` 与 `admin_session`
+- 前台与后台分离，不再通过普通用户菜单进入管理台
+
+## 目录结构
+
+```text
+pet-shop
+├─ backend   # Spring Boot API
+├─ frontend  # Vite + React 前端
+├─ README.md
+├─ BACKEND_DEVELOPMENT_SPEC.md
+└─ DEVELOPMENT_PLAN.md
+```
 
 ## 技术栈
 
 前端：
 
-- Vite
 - React
 - TypeScript
+- Vite
 - lucide-react
 
 后端：
 
 - Spring Boot 2.7
 - Spring Data JPA
-- MySQL 8
-- 本地文件上传
+- MySQL
 
-## 项目结构
-
-```text
-pet-shop
-├── backend   # Spring Boot API
-├── frontend  # React Web 页面
-├── docker-compose.yml
-└── DEVELOPMENT_PLAN.md
-```
-
-## 本地开发
+## 本地启动
 
 ### 1. 创建数据库
 
@@ -50,19 +45,15 @@ pet-shop
 CREATE DATABASE pet_shop DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 2. 配置后端环境变量
+### 2. 后端默认配置
 
-PowerShell 示例：
+默认开发配置位于 [backend/src/main/resources/application.yml](/H:/study-code/pet-shop/backend/src/main/resources/application.yml)。
 
-```powershell
-$env:MYSQL_URL="jdbc:mysql://localhost:3306/pet_shop?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
-$env:MYSQL_USERNAME="root"
-$env:MYSQL_PASSWORD="123"
-$env:APP_UPLOAD_DIR="uploads"
-$env:APP_UPLOAD_URL_PREFIX="/api/uploads/"
-```
+默认数据库连接：
 
-后端默认值仍保留在 `backend/src/main/resources/application.yml` 中，开发环境不设置变量也可以使用默认的 `root / 123`。
+- `MYSQL_URL=jdbc:mysql://localhost:3306/pet_shop?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai`
+- `MYSQL_USERNAME=root`
+- `MYSQL_PASSWORD=123`
 
 ### 3. 启动后端
 
@@ -71,10 +62,10 @@ cd backend
 mvn spring-boot:run
 ```
 
-接口地址：
+接口根地址：
 
 ```text
-http://localhost:8080/api
+http://127.0.0.1:8080/api
 ```
 
 ### 4. 启动前端
@@ -85,140 +76,82 @@ npm install
 npm run dev
 ```
 
-页面地址：
+普通用户前台：
 
 ```text
-http://localhost:5173/index.html
+http://127.0.0.1:5173/index.html
 ```
 
-前端开发代理默认转发 `/api` 到 `http://localhost:8080`，可用 `VITE_API_PROXY` 覆盖。
-
-后端开发和重构统一遵循仓库根目录下的 `BACKEND_DEVELOPMENT_SPEC.md`。
-当前已按该规范完成第一批重构：用户模块、交易帖子模块、日常动态与评论模块。
-
-## 账号登录
-
-前台账号入口在右上角“登录 / 注册”。当前支持：
-
-- 用户名 + 密码登录。
-- 手机号 + 验证码登录。
-- 手机号验证码注册账号。
-
-开发环境的验证码接口会直接返回验证码，便于本地调试；接入真实短信服务后，后端保留同一接口，不再把验证码返回给前端。
-
-## 超级管理员
-
-管理后台只对 `SUPER_ADMIN` 角色开放。普通用户只能管理自己的发布、收藏和私信。
-
-默认开发配置：
+独立管理员后台：
 
 ```text
-管理员账号：superadmin
-管理员密码：change-me-admin-password
+http://127.0.0.1:5173/admin.html
 ```
 
-超级管理员不走前台普通注册。应用启动时会根据配置在数据库中预置 `SUPER_ADMIN` 账号，登录时使用“密码登录”。后续新增管理员必须由已有超级管理员进入管理后台，在“用户管理”中授权。生产环境必须通过环境变量修改：
+## 登录说明
 
-```powershell
-$env:APP_ADMIN_USERNAMES="your-admin-name"
-$env:APP_ADMIN_PASSWORD="your-strong-admin-password"
-```
+### 普通用户
 
-Docker 部署时可在 `.env` 中配置同名变量。
+支持：
 
-## 构建验证
+- 用户名 + 密码登录
+- 手机号 + 验证码登录
+- 手机号验证码注册
 
-后端打包：
+相关接口：
+
+- `POST /api/users/login/password`
+- `POST /api/users/login/sms`
+- `POST /api/users/register`
+
+### 管理员
+
+管理员必须走独立后台登录入口，不允许通过普通用户登录页登录。
+
+相关接口：
+
+- `POST /api/admin/auth/login`
+- `POST /api/admin/auth/logout`
+- `GET /api/admin/auth/me`
+
+默认管理员账号：
+
+- 用户名：`superadmin`
+- 密码：`change-me-admin-password`
+
+后续新增管理员账号，应通过已登录管理员在后台创建，不再通过普通用户升权。
+
+## 当前重要约束
+
+- 普通用户和管理员账号分表存储
+- 普通用户前台与管理后台分入口、分登录、分接口
+- 普通用户不能在前台看到后台入口
+- 管理台只处理管理事务，不承载普通用户业务页面
+
+## 测试与构建
+
+后端编译：
 
 ```powershell
 cd backend
-mvn package -DskipTests
+mvn test
 ```
 
-前端类型检查与构建：
+前端构建：
 
 ```powershell
 cd frontend
-.\node_modules\.bin\tsc.cmd -b
-.\node_modules\.bin\vite.cmd build
+npm run build
 ```
 
-## Docker 部署
-
-复制环境变量模板：
-
-```powershell
-Copy-Item .env.example .env
-```
-
-按需修改 `.env` 中的数据库账号、密码和上传目录，然后启动：
-
-```powershell
-docker compose up --build
-```
-
-访问地址：
-
-```text
-http://localhost:5173
-```
-
-服务端口：
-
-- 前端 Nginx：`5173 -> 80`
-- 后端 API：`8080`
-- MySQL：`3306`
-
-## 生产配置
-
-后端生产配置位于：
-
-```text
-backend/src/main/resources/application-prod.yml
-```
-
-主要通过环境变量注入：
-
-- `MYSQL_URL`
-- `MYSQL_USERNAME`
-- `MYSQL_PASSWORD`
-- `APP_UPLOAD_DIR`
-- `APP_UPLOAD_URL_PREFIX`
-- `SERVER_PORT`
-
-前端容器使用 `frontend/nginx.conf`：
-
-- 静态资源由 Nginx 提供
-- `/api/` 反向代理到 `backend:8080/api/`
-- 单页应用路由回退到 `index.html`
-
-## 初始化数据
-
-应用启动时会通过 `DataSeeder` 自动补齐基础分类、地区和选项数据。
-
-独立 SQL 参考脚本位于：
-
-```text
-database/initial-data.sql
-```
-
-后续引入 Flyway 或 Liquibase 时，可以将该脚本拆分为正式迁移文件。
-
-## 注意事项
-
-- 当前登录仍是原型阶段的昵称登录，不是完整认证系统。
-- 项目已接入 Flyway，迁移脚本位于 `backend/src/main/resources/db/migration`；开发环境默认关闭 Flyway 并保留 `ddl-auto: update` 便于兼容旧本地库，生产环境启用 Flyway 并使用 `ddl-auto: validate`。
-- 本地上传文件默认保存在 `backend/uploads`，Docker 部署时挂载到 `uploads` 数据卷。
-
-
-????????????????????????????????????/???????????????????????????? [BACKEND_DEVELOPMENT_SPEC.md](BACKEND_DEVELOPMENT_SPEC.md)?
-
-
-?? E2E ?????
+前端 E2E：
 
 ```powershell
 cd frontend
 npm run test:e2e
 ```
 
-?? E2E ?????????? Chrome ??????????
+## 文档
+
+- 开发规范：[BACKEND_DEVELOPMENT_SPEC.md](/H:/study-code/pet-shop/BACKEND_DEVELOPMENT_SPEC.md)
+- 阶段计划：[DEVELOPMENT_PLAN.md](/H:/study-code/pet-shop/DEVELOPMENT_PLAN.md)

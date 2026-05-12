@@ -2,7 +2,10 @@ package com.petshop.controller;
 
 import com.petshop.api.ApiResponse;
 import com.petshop.dto.upload.UploadResponse;
+import com.petshop.model.AppUser;
 import com.petshop.service.UploadService;
+import com.petshop.support.CurrentUser;
+import com.petshop.support.UserGuard;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +24,9 @@ public class UploadController {
     }
 
     @PostMapping
-    public ApiResponse<UploadResponse> upload(@RequestParam("file") MultipartFile file) throws IOException {
+    public ApiResponse<UploadResponse> upload(@CurrentUser AppUser currentUser,
+                                              @RequestParam("file") MultipartFile file) throws IOException {
+        UserGuard.requireAuthenticated(currentUser, "上传图片");
         return ApiResponse.success("图片上传成功", uploadService.upload(file));
     }
 }

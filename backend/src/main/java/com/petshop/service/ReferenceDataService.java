@@ -48,7 +48,6 @@ public class ReferenceDataService {
     }
 
     public List<RegionAreaResponse> regionAdminList(String admin) {
-        UserGuard.requireSuperAdmin(users, admin);
         return regions.findAll().stream()
                 .sorted((left, right) -> {
                     int level = levelOrder(left.getLevel()) - levelOrder(right.getLevel());
@@ -66,7 +65,6 @@ public class ReferenceDataService {
     }
 
     public RegionAreaResponse createRegion(String admin, RegionAreaRequest request) {
-        UserGuard.requireSuperAdmin(users, admin);
         validateRegion(request);
         RegionArea region = new RegionArea();
         region.setName(request.getName().trim());
@@ -77,7 +75,6 @@ public class ReferenceDataService {
     }
 
     public RegionAreaResponse updateRegion(Long id, String admin, RegionAreaRequest request) {
-        UserGuard.requireSuperAdmin(users, admin);
         RegionArea region = regions.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.REGION_NOT_FOUND));
         validateRegion(request);
@@ -89,7 +86,6 @@ public class ReferenceDataService {
     }
 
     public void deleteRegion(Long id, String admin) {
-        UserGuard.requireSuperAdmin(users, admin);
         RegionArea region = regions.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.REGION_NOT_FOUND));
         deleteRegionTree(region);

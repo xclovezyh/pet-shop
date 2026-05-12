@@ -39,7 +39,6 @@ public class MarketPostService {
     }
 
     public List<MarketPostResponse> adminList(String adminNickname) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         return posts.findAll().stream()
                 .sorted(Comparator.comparing(MarketPost::getCreatedAt).reversed())
                 .map(this::toResponse)
@@ -98,7 +97,6 @@ public class MarketPostService {
     }
 
     public MarketPostResponse audit(Long id, String adminNickname, String status) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         if (!AUDIT_APPROVED.equals(status) && !AUDIT_REMOVED.equals(status)) {
             throw new ApiException(ApiErrorCode.POST_AUDIT_STATUS_INVALID);
         }

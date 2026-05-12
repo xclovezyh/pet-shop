@@ -58,7 +58,6 @@ public class ContentReportService {
     }
 
     public List<ContentReportResponse> adminReports(String admin) {
-        UserGuard.requireSuperAdmin(users, admin);
         return reports.findAllByOrderByCreatedAtDesc().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -90,7 +89,6 @@ public class ContentReportService {
 
     public ContentReportResponse handle(Long id, String operator, ContentReportHandleRequest request) {
         requireText(operator, ApiErrorCode.REPORT_OPERATOR_REQUIRED, "请填写处理人");
-        UserGuard.requireSuperAdmin(users, operator);
         ContentReport report = reports.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.REPORT_NOT_FOUND));
 

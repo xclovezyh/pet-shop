@@ -3,7 +3,10 @@ package com.petshop.controller;
 import com.petshop.api.ApiResponse;
 import com.petshop.dto.post.MarketPostRequest;
 import com.petshop.dto.post.MarketPostResponse;
+import com.petshop.model.AppUser;
 import com.petshop.service.MarketPostService;
+import com.petshop.support.CurrentUser;
+import com.petshop.support.UserGuard;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,8 +34,9 @@ public class MarketPostController {
     }
 
     @GetMapping("/admin")
-    public ApiResponse<List<MarketPostResponse>> adminList(@RequestParam String admin) {
-        return ApiResponse.success(marketPostService.adminList(admin));
+    public ApiResponse<List<MarketPostResponse>> adminList(@CurrentUser AppUser currentUser) {
+        AppUser user = UserGuard.requireSuperAdmin(currentUser);
+        return ApiResponse.success(marketPostService.adminList(user.getNickname()));
     }
 
     @GetMapping("/{id}")
@@ -41,27 +45,34 @@ public class MarketPostController {
     }
 
     @PostMapping
-    public ApiResponse<MarketPostResponse> create(@RequestBody MarketPostRequest request) {
+    public ApiResponse<MarketPostResponse> create(@CurrentUser AppUser currentUser,
+                                                  @RequestBody MarketPostRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "发布帖子");
+        request.setAuthor(user.getNickname());
         return ApiResponse.success("帖子发布成功", marketPostService.create(request));
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id, @RequestParam String author) {
-        marketPostService.delete(id, author);
+    public ApiResponse<Void> delete(@PathVariable Long id, @CurrentUser AppUser currentUser) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "删除帖子");
+        marketPostService.delete(id, user.getNickname());
         return ApiResponse.success("帖子已删除", null);
     }
 
     @PutMapping("/{id}")
     public ApiResponse<MarketPostResponse> update(@PathVariable Long id,
-                                                  @RequestParam String author,
+                                                  @CurrentUser AppUser currentUser,
                                                   @RequestBody MarketPostRequest request) {
-        return ApiResponse.success("帖子已更新", marketPostService.update(id, author, request));
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "编辑帖子");
+        request.setAuthor(user.getNickname());
+        return ApiResponse.success("帖子已更新", marketPostService.update(id, user.getNickname(), request));
     }
 
     @PutMapping("/{id}/audit")
     public ApiResponse<MarketPostResponse> audit(@PathVariable Long id,
-                                                 @RequestParam String admin,
+                                                 @CurrentUser AppUser currentUser,
                                                  @RequestParam String status) {
-        return ApiResponse.success("审核状态已更新", marketPostService.audit(id, admin, status));
+        AppUser user = UserGuard.requireSuperAdmin(currentUser);
+        return ApiResponse.success("审核状态已更新", marketPostService.audit(id, user.getNickname(), status));
     }
 }

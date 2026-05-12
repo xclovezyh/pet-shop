@@ -2,6 +2,7 @@ package com.petshop.service;
 
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
+import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.LoginByPasswordRequest;
 import com.petshop.dto.user.LoginBySmsRequest;
 import com.petshop.dto.user.RegisterUserRequest;
@@ -32,17 +33,18 @@ public class UserService {
     private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final AppUserRepository users;
-    private final AdminAccountService adminAccountService;
+    private final UserSessionService userSessionService;
     private final Map<String, VerificationCode> verificationCodes = new ConcurrentHashMap<>();
 
-    public UserService(AppUserRepository users, AdminAccountService adminAccountService) {
+    public UserService(AppUserRepository users,
+                       UserSessionService userSessionService) {
         this.users = users;
-        this.adminAccountService = adminAccountService;
+        this.userSessionService = userSessionService;
     }
 
     public List<UserResponse> list(String adminNickname) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         return users.findAll().stream()
+                .filter(user -> !UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole()))
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -60,7 +62,7 @@ public class UserService {
         return response;
     }
 
-    public UserResponse register(RegisterUserRequest request) {
+    public AuthSessionResponse register(RegisterUserRequest request) {
         String username = normalizeUsername(request.getUsername());
         String password = requirePassword(request.getPassword());
         String phone = normalizePhone(request.getPhone());
@@ -70,9 +72,6 @@ public class UserService {
         }
         if (PHONE_PATTERN.matcher(nickname).find()) {
             throw new ApiException(ApiErrorCode.INVALID_PARAM, "昵称不能使用手机号");
-        }
-        if (adminAccountService.isConfiguredAdmin(username) || adminAccountService.isConfiguredAdmin(nickname)) {
-            throw new ApiException(ApiErrorCode.SUPER_ADMIN_REGISTER_FORBIDDEN);
         }
         ContentSafety.validate(nickname);
         verifyCode(phone, request.getCode());
@@ -93,10 +92,10 @@ public class UserService {
         user.setBlacklisted(false);
         user.setCreatedAt(LocalDateTime.now());
         user.setLastLoginAt(LocalDateTime.now());
-        return toResponse(users.save(user));
+        return buildAuthSession(users.save(user));
     }
 
-    public UserResponse loginByPassword(LoginByPasswordRequest request) {
+    public AuthSessionResponse loginByPassword(LoginByPasswordRequest request) {
         String account = safe(request.getAccount());
         String password = safe(request.getPassword());
         if (account.isEmpty() || password.isEmpty()) {
@@ -105,18 +104,25 @@ public class UserService {
         AppUser user = users.findByUsername(account)
                 .orElseGet(() -> users.findByPhone(account)
                         .orElseThrow(() -> new ApiException(ApiErrorCode.LOGIN_FAILED)));
+        if (UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole())) {
+            throw new ApiException(ApiErrorCode.LOGIN_FAILED, "请使用管理员登录入口");
+        }
         if (isBlank(user.getPasswordHash()) || !PASSWORD_ENCODER.matches(password, user.getPasswordHash())) {
             throw new ApiException(ApiErrorCode.LOGIN_FAILED);
         }
-        return toResponse(finishLogin(user));
+        return buildAuthSession(finishLogin(user));
     }
 
-    public UserResponse loginBySms(LoginBySmsRequest request) {
+    public AuthSessionResponse loginBySms(LoginBySmsRequest request) {
         String phone = normalizePhone(request.getPhone());
         verifyCode(phone, request.getCode());
         AppUser user = users.findByPhone(phone)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "手机号尚未注册，请先注册账号"));
-        return toResponse(finishLogin(user));
+        return buildAuthSession(finishLogin(user));
+    }
+
+    public UserResponse me(AppUser currentUser) {
+        return toResponse(currentUser);
     }
 
     public UserResponse exists(String nickname) {
@@ -142,7 +148,6 @@ public class UserService {
     }
 
     public UserResponse blacklist(Long id, String adminNickname, String reason) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         AppUser user = users.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         if (UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole())) {
@@ -154,7 +159,6 @@ public class UserService {
     }
 
     public UserResponse unblacklist(Long id, String adminNickname) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
         AppUser user = users.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         user.setBlacklisted(false);
@@ -163,17 +167,7 @@ public class UserService {
     }
 
     public UserResponse updateRole(Long id, String adminNickname, String role) {
-        UserGuard.requireSuperAdmin(users, adminNickname);
-        AppUser user = users.findById(id)
-                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
-        if (!ROLE_USER.equals(role) && !UserGuard.ROLE_SUPER_ADMIN.equals(role)) {
-            throw new ApiException(ApiErrorCode.INVALID_ROLE);
-        }
-        if (adminNickname.equals(user.getNickname()) && !UserGuard.ROLE_SUPER_ADMIN.equals(role)) {
-            throw new ApiException(ApiErrorCode.SELF_ROLE_REVOKE_FORBIDDEN);
-        }
-        user.setRole(role);
-        return toResponse(users.save(user));
+        throw new ApiException(ApiErrorCode.FORBIDDEN, "普通用户与管理员账号已拆分，请在管理员后台创建管理员账号");
     }
 
     private AppUser finishLogin(AppUser user) {
@@ -183,6 +177,13 @@ public class UserService {
         }
         user.setLastLoginAt(LocalDateTime.now());
         return users.save(user);
+    }
+
+    private AuthSessionResponse buildAuthSession(AppUser user) {
+        AuthSessionResponse response = new AuthSessionResponse();
+        response.setToken(userSessionService.createSession(user));
+        response.setUser(toResponse(user));
+        return response;
     }
 
     private void verifyCode(String phone, String code) {

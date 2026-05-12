@@ -3,7 +3,10 @@ package com.petshop.controller;
 import com.petshop.api.ApiResponse;
 import com.petshop.dto.trade.TradeIntentCreateRequest;
 import com.petshop.dto.trade.TradeIntentResponse;
+import com.petshop.model.AppUser;
 import com.petshop.service.TradeIntentService;
+import com.petshop.support.CurrentUser;
+import com.petshop.support.UserGuard;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,20 +28,25 @@ public class TradeIntentController {
     }
 
     @GetMapping
-    public ApiResponse<List<TradeIntentResponse>> list(@RequestParam String user,
+    public ApiResponse<List<TradeIntentResponse>> list(@CurrentUser AppUser currentUser,
                                                        @RequestParam(defaultValue = "requester") String role) {
-        return ApiResponse.success(tradeIntentService.list(user, role));
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "查看交易意向");
+        return ApiResponse.success(tradeIntentService.list(user.getNickname(), role));
     }
 
     @PostMapping
-    public ApiResponse<TradeIntentResponse> create(@RequestBody TradeIntentCreateRequest request) {
+    public ApiResponse<TradeIntentResponse> create(@CurrentUser AppUser currentUser,
+                                                   @RequestBody TradeIntentCreateRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "提交交易意向");
+        request.setRequester(user.getNickname());
         return ApiResponse.success("交易意向已提交", tradeIntentService.create(request));
     }
 
     @PutMapping("/{id}/status")
     public ApiResponse<TradeIntentResponse> updateStatus(@PathVariable Long id,
-                                                         @RequestParam String user,
+                                                         @CurrentUser AppUser currentUser,
                                                          @RequestParam String status) {
-        return ApiResponse.success("交易意向状态已更新", tradeIntentService.updateStatus(id, user, status));
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "处理交易意向");
+        return ApiResponse.success("交易意向状态已更新", tradeIntentService.updateStatus(id, user.getNickname(), status));
     }
 }

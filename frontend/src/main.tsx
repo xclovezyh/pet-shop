@@ -22,7 +22,7 @@ import {
   X
 } from 'lucide-react';
 import './styles.css';
-import { readApiData, readError } from './api';
+import { apiFetch, clearAuthSession, getStoredUser, readApiData, readError, saveAuthSession, saveStoredUser, type AuthSession } from './api';
 
 const API_BASE = '/api';
 const CONTACT_VALUE = '站内私信';
@@ -126,11 +126,12 @@ type TradeIntent = { id: number; postId: number; postTitle: string; requester: s
 type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reporter: string; reason: string; status: string; createdAt: string; handledBy?: string; handledAt?: string; handleNote?: string };
 type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
-type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'admin' | 'account';
+type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'account';
 type AdminTab = 'reports' | 'users' | 'posts' | 'moments' | 'categories' | 'regions';
 type VerifyCodeResponse = { phone: string; code?: string; expireSeconds: number; message: string };
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
+type UserAuthSession = AuthSession<UserProfile>;
 type ReferenceData = {
   regions: Region[];
   postTypes: string[];
@@ -184,7 +185,7 @@ function useApi<T>(path: string, fallback: T) {
   const [loading, setLoading] = React.useState(true);
   const load = React.useCallback(() => {
     setLoading(true);
-    fetch(`${API_BASE}${path}`)
+    apiFetch(`${API_BASE}${path}`)
       .then((res) => readApiData<T>(res))
       .then(setData)
       .catch(() => setData(fallback))
@@ -208,10 +209,7 @@ function App() {
   const [maxPrice, setMaxPrice] = React.useState('');
   const [sortMode, setSortMode] = React.useState<'latest' | 'oldest'>('latest');
   const [page, setPage] = React.useState<PageKey>('home');
-  const [currentUser, setCurrentUser] = React.useState<UserProfile | null>(() => {
-    const raw = localStorage.getItem('petshop_user');
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [currentUser, setCurrentUser] = React.useState<UserProfile | null>(() => getStoredUser<UserProfile>());
   const [detail, setDetail] = React.useState<{ type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet } | null>(null);
   const [editing, setEditing] = React.useState<{ type: 'post' | 'moment'; item: MarketPost | Moment } | null>(null);
   const [threads, setThreads] = React.useState<MessageThread[]>([]);
@@ -237,24 +235,25 @@ function App() {
     .filter((moment) => matchesCity(cityFilter, moment.city))
     .filter((moment) => matchesText(searchQuery, [moment.author, moment.petName, moment.category, moment.city, moment.content])), sortMode);
 
-  function handleLogin(user: AppUser) {
-    localStorage.setItem('petshop_user', JSON.stringify(user));
-    setCurrentUser(user);
+  function handleLogin(session: UserAuthSession) {
+    saveAuthSession(session);
+    setCurrentUser(session.user);
   }
 
   function handleProfileSaved(user: UserProfile) {
-    localStorage.setItem('petshop_user', JSON.stringify(user));
+    saveStoredUser(user);
     setCurrentUser(user);
   }
 
   function logout() {
-    localStorage.removeItem('petshop_user');
+    void apiFetch(`${API_BASE}/users/logout`, { method: 'POST' });
+    clearAuthSession();
     setCurrentUser(null);
   }
 
   React.useEffect(() => {
     if (!currentUser) return;
-    fetch(`${API_BASE}/users/exists?nickname=${encodeURIComponent(currentUser.nickname)}`)
+    apiFetch(`${API_BASE}/users/me`)
       .then((res) => res.ok ? readApiData<UserProfile>(res) : Promise.reject())
       .then((user) => {
         if (user.blacklisted) {
@@ -262,7 +261,7 @@ function App() {
           logout();
           return;
         }
-        localStorage.setItem('petshop_user', JSON.stringify(user));
+        saveStoredUser(user);
         setCurrentUser(user);
       })
       .catch(() => logout());
@@ -273,7 +272,7 @@ function App() {
       setThreads([]);
       return;
     }
-    fetch(`${API_BASE}/messages?user=${encodeURIComponent(currentUser.nickname)}`)
+    apiFetch(`${API_BASE}/messages`)
       .then((res) => res.ok ? readApiData<MessageThread[]>(res) : Promise.reject())
       .then(setThreads)
       .catch(() => setThreads([]));
@@ -286,7 +285,7 @@ function App() {
       setFavoritePosts([]);
       return;
     }
-    fetch(`${API_BASE}/favorites?user=${encodeURIComponent(currentUser.nickname)}`)
+    apiFetch(`${API_BASE}/favorites`)
       .then((res) => res.ok ? readApiData<PostFavorite[]>(res) : Promise.reject())
       .then((items: PostFavorite[]) => setFavoritePosts(items.map((item) => item.post).filter(Boolean) as MarketPost[]))
       .catch(() => setFavoritePosts([]));
@@ -300,10 +299,9 @@ function App() {
       setReceivedIntents([]);
       return;
     }
-    const user = encodeURIComponent(currentUser.nickname);
     Promise.all([
-      fetch(`${API_BASE}/trade-intents?user=${user}&role=requester`).then((res) => res.ok ? readApiData<TradeIntent[]>(res) : []),
-      fetch(`${API_BASE}/trade-intents?user=${user}&role=owner`).then((res) => res.ok ? readApiData<TradeIntent[]>(res) : [])
+      apiFetch(`${API_BASE}/trade-intents?role=requester`).then((res) => res.ok ? readApiData<TradeIntent[]>(res) : []),
+      apiFetch(`${API_BASE}/trade-intents?role=owner`).then((res) => res.ok ? readApiData<TradeIntent[]>(res) : [])
     ])
       .then(([sent, received]) => {
         setSentIntents(sent);
@@ -327,10 +325,10 @@ function App() {
       alert('请先登录后再私信发布者。');
       return;
     }
-    const res = await fetch(`${API_BASE}/messages/start`, {
+    const res = await apiFetch(`${API_BASE}/messages/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postId: post.id, sender: currentUser.nickname, content: `你好，我想了解「${post.title}」。` })
+      body: JSON.stringify({ postId: post.id, content: `你好，我想了解「${post.title}」。` })
     });
     if (!res.ok) {
       alert(await readError(res));
@@ -348,10 +346,10 @@ function App() {
       return;
     }
     const exists = favoritePosts.some((item) => item.id === post.id);
-    const res = await fetch(`${API_BASE}/favorites${exists ? `/${post.id}?user=${encodeURIComponent(currentUser.nickname)}` : ''}`, {
+    const res = await apiFetch(`${API_BASE}/favorites${exists ? `/${post.id}` : ''}`, {
       method: exists ? 'DELETE' : 'POST',
       headers: exists ? undefined : { 'Content-Type': 'application/json' },
-      body: exists ? undefined : JSON.stringify({ userNickname: currentUser.nickname, postId: post.id })
+      body: exists ? undefined : JSON.stringify({ postId: post.id })
     });
     if (!res.ok) {
       alert(await readError(res));
@@ -372,10 +370,10 @@ function App() {
       alert('举报原因不能包含手机号、微信号、QQ号或敏感词。');
       return;
     }
-    const res = await fetch(`${API_BASE}/reports`, {
+    const res = await apiFetch(`${API_BASE}/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetType: type, targetId: id, reporter: currentUser.nickname, reason: text })
+      body: JSON.stringify({ targetType: type, targetId: id, reason: text })
     });
     alert(res.ok ? '举报已提交，等待处理。' : await readError(res));
   }
@@ -385,10 +383,10 @@ function App() {
       alert('请先登录后再提交交易意向。');
       return false;
     }
-    const res = await fetch(`${API_BASE}/trade-intents`, {
+    const res = await apiFetch(`${API_BASE}/trade-intents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postId: post.id, requester: currentUser.nickname, message })
+      body: JSON.stringify({ postId: post.id, message })
     });
     if (!res.ok) {
       alert(await readError(res));
@@ -401,7 +399,7 @@ function App() {
 
   async function updateTradeIntent(intent: TradeIntent, status: string) {
     if (!currentUser) return;
-    const res = await fetch(`${API_BASE}/trade-intents/${intent.id}/status?user=${encodeURIComponent(currentUser.nickname)}&status=${encodeURIComponent(status)}`, { method: 'PUT' });
+    const res = await apiFetch(`${API_BASE}/trade-intents/${intent.id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' });
     if (!res.ok) {
       alert(await readError(res));
       return;
@@ -418,12 +416,12 @@ function App() {
       <header className="topbar">
         <div className="brand"><PawPrint /><span>萌宠集市</span></div>
         <nav>
-          <button type="button" className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>首页</button>
-          <button type="button" className={page === 'guide' ? 'active' : ''} onClick={() => setPage('guide')}>百科</button>
-          <button type="button" className={page === 'market' ? 'active' : ''} onClick={() => setPage('market')}>市场</button>
-          <button type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
+          <button data-testid="nav-home" type="button" className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>首页</button>
+          <button data-testid="nav-guide" type="button" className={page === 'guide' ? 'active' : ''} onClick={() => setPage('guide')}>百科</button>
+          <button data-testid="nav-market" type="button" className={page === 'market' ? 'active' : ''} onClick={() => setPage('market')}>市场</button>
+          <button data-testid="nav-moments" type="button" className={page === 'moments' ? 'active' : ''} onClick={() => setPage('moments')}>日常</button>
         </nav>
-        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onAccount={() => setPage('account')} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onAdmin={() => setPage('admin')} onLogout={logout} />
+        <LoginBox currentUser={currentUser} unreadCount={unreadCount} onAccount={() => setPage('account')} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onLogout={logout} />
       </header>
 
       {page === 'home' && (
@@ -477,7 +475,6 @@ function App() {
       {page === 'profile' && <ProfilePage currentUser={currentUser} referenceData={referenceData.data} posts={posts.data} favoriteCount={favoritePosts.length} onSaved={handleProfileSaved} onFavorites={() => setPage('favorites')} onMessages={() => setPage('messages')} />}
       {page === 'messages' && <MessagesPage currentUser={currentUser} threads={threads} onThreadsChange={setThreads} onReload={loadThreads} />}
       {page === 'favorites' && <FavoritesPage currentUser={currentUser} posts={favoritePosts} favoriteIds={favoriteIds} onOpen={(post) => setDetail({ type: 'post', item: post })} onToggleFavorite={toggleFavorite} />}
-      {page === 'admin' && <AdminPage currentUser={currentUser} onOpen={setDetail} onChanged={reloadFeeds} />}
       {page === 'account' && <AccountPage currentUser={currentUser} onLogin={handleLogin} onProfile={() => setPage('profile')} />}
 
       {detail && <DetailModal detail={detail} currentUser={currentUser} favoriteIds={favoriteIds} sentIntents={sentIntents} onFavorite={toggleFavorite} onReport={reportContent} onMessage={startMessage} onTradeIntent={submitTradeIntent} onMomentChanged={reloadFeeds} onClose={() => setDetail(null)} />}
@@ -486,7 +483,7 @@ function App() {
   );
 }
 
-function LoginBox({ currentUser, unreadCount, onAccount, onMine, onProfile, onMessages, onAdmin, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onAccount: () => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onAdmin: () => void; onLogout: () => void }) {
+function LoginBox({ currentUser, unreadCount, onAccount, onMine, onProfile, onMessages, onLogout }: { currentUser: UserProfile | null; unreadCount: number; onAccount: () => void; onMine: () => void; onProfile: () => void; onMessages: () => void; onLogout: () => void }) {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -516,16 +513,15 @@ function LoginBox({ currentUser, unreadCount, onAccount, onMine, onProfile, onMe
   if (currentUser) {
     return (
       <div className="userMenu" ref={menuRef}>
-        <button type="button" className="userMenuTrigger" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <button data-testid="user-menu-trigger" type="button" className="userMenuTrigger" aria-expanded={open} onClick={() => setOpen(!open)}>
           <span className="avatarMini">{currentUser.nickname.slice(0, 1)}</span>
           <span>{currentUser.nickname}</span>
           {unreadCount > 0 && <em>{unreadCount}</em>}
         </button>
         {open && <div className="userMenuPanel">
           <button type="button" onClick={() => { setOpen(false); onMine(); }}>我的发布</button>
-          <button type="button" onClick={() => { setOpen(false); onProfile(); }}>个人主页</button>
+          <button data-testid="account-view-profile" type="button" onClick={() => { setOpen(false); onProfile(); }}>个人主页</button>
           <button type="button" onClick={() => { setOpen(false); onMessages(); }}>站内私信{unreadCount > 0 ? ` ${unreadCount}` : ''}</button>
-          {isSuperAdmin(currentUser) && <button type="button" onClick={() => { setOpen(false); onAdmin(); }}>管理后台</button>}
           <button type="button" className="logoutItem" onClick={() => { setOpen(false); onLogout(); }}>退出登录</button>
         </div>}
       </div>
@@ -533,14 +529,14 @@ function LoginBox({ currentUser, unreadCount, onAccount, onMine, onProfile, onMe
   }
 
   return (
-    <button type="button" className="loginBox loginEntry" onClick={onAccount}>
+    <button data-testid="login-entry" type="button" className="loginBox loginEntry" onClick={onAccount}>
       <LogIn size={16} />
       <span>登录 / 注册</span>
     </button>
   );
 }
 
-function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserProfile | null; onLogin: (user: UserProfile) => void; onProfile: () => void }) {
+function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserProfile | null; onLogin: (session: UserAuthSession) => void; onProfile: () => void }) {
   const [mode, setMode] = React.useState<'password' | 'sms' | 'register'>('password');
   const [account, setAccount] = React.useState('');
   const [username, setUsername] = React.useState('');
@@ -560,7 +556,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
     if (!phonePattern.test(mobile)) return setError('请输入正确的手机号');
     setSending(true);
     try {
-      const res = await fetch(`${API_BASE}/users/verification-code`, {
+      const res = await apiFetch(`${API_BASE}/users/verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: mobile })
@@ -588,14 +584,14 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
         : mode === 'sms'
           ? { phone, code }
           : { account, password };
-      const res = await fetch(`${API_BASE}${endpoint}`, {
+      const res = await apiFetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error(await readError(res));
-      const user = await readApiData<UserProfile>(res);
-      onLogin(user);
+      const session = await readApiData<UserAuthSession>(res);
+      onLogin(session);
       setNotice(mode === 'register' ? '注册成功，已自动登录。' : '登录成功。');
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败，请稍后重试。');
@@ -606,7 +602,7 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
 
   if (currentUser) {
     return (
-      <section className="page section accountPage">
+      <section data-testid="account-page" className="page section accountPage">
         <SectionTitle icon={<User />} title="账号中心" helper="管理登录身份、个人资料和站内沟通入口" />
         <div className="accountShell signed">
           <div className="accountSummary">
@@ -625,46 +621,46 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
   }
 
   return (
-    <section className="page section accountPage">
+      <section data-testid="account-page" className="page section accountPage">
       <SectionTitle icon={<LogIn />} title="登录 / 注册" helper="使用手机号验证码或用户名密码进入账号，发布、收藏、私信都绑定到你的账号" />
       <div className="accountShell">
         <div className="accountTabs">
-          <button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>密码登录</button>
-          <button type="button" className={mode === 'sms' ? 'active' : ''} onClick={() => setMode('sms')}>验证码登录</button>
-          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册账号</button>
+          <button data-testid="account-mode-password" type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>密码登录</button>
+          <button data-testid="account-mode-sms" type="button" className={mode === 'sms' ? 'active' : ''} onClick={() => setMode('sms')}>验证码登录</button>
+          <button data-testid="account-mode-register" type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册账号</button>
         </div>
         <form className="accountForm" onSubmit={submit}>
           {mode === 'password' && (
             <>
-              <label>用户名或手机号<input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
-              <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入密码" /></label>
+              <label>用户名或手机号<input data-testid="password-login-account" value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
+              <label>密码<input data-testid="password-login-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入密码" /></label>
               <p className="formNote">超级管理员账号由系统预置，请使用配置的账号和密码登录。</p>
             </>
           )}
           {mode === 'sms' && (
             <>
-              <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="输入手机号" /></label>
+              <label>手机号<input data-testid="sms-login-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="输入手机号" /></label>
               <div className="codeRow">
-                <label>验证码<input value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
-                <button type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+                <label>验证码<input data-testid="sms-login-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
               </div>
             </>
           )}
           {mode === 'register' && (
             <>
-              <label>用户名<input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="字母开头，4-20 位" /></label>
-              <label>展示昵称<input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="发布和私信中显示的名字" /></label>
-              <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于验证码注册" /></label>
+              <label>用户名<input data-testid="register-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="字母开头，4-20 位" /></label>
+              <label>展示昵称<input data-testid="register-nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="发布和私信中显示的名字" /></label>
+              <label>手机号<input data-testid="register-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于验证码注册" /></label>
               <div className="codeRow">
-                <label>验证码<input value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
-                <button type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+                <label>验证码<input data-testid="register-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
               </div>
-              <label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
+              <label>密码<input data-testid="register-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
             </>
           )}
           {error && <p className="formError">{error}</p>}
           {notice && <p className="formNote">{notice}</p>}
-          <button type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : '登录'}</button>
+          <button data-testid="account-submit" type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : '登录'}</button>
         </form>
       </div>
     </section>
@@ -1707,7 +1703,7 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
 
   React.useEffect(() => {
     if (!activeThread || !currentUser) return;
-    fetch(`${API_BASE}/messages/${activeThread.id}/read?user=${encodeURIComponent(currentUser.nickname)}`, { method: 'PUT' })
+    apiFetch(`${API_BASE}/messages/${activeThread.id}/read`, { method: 'PUT' })
       .then((res) => res.ok ? readApiData<MessageThread>(res) : Promise.reject())
       .then((updated) => {
         onThreadsChange(threads.map((thread) => thread.id === updated.id ? updated : thread));
@@ -1729,10 +1725,10 @@ function MessagesPage({ currentUser, threads, onThreadsChange, onReload }: { cur
       setError('私信内容不能填写手机号、微信号、QQ 号或敏感词，请使用站内沟通。');
       return;
     }
-    const res = await fetch(`${API_BASE}/messages/${activeThread.id}`, {
+    const res = await apiFetch(`${API_BASE}/messages/${activeThread.id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender: currentUser.nickname, content })
+      body: JSON.stringify({ content })
     });
     if (!res.ok) {
       setError(await readError(res));
@@ -1883,7 +1879,7 @@ function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment;
   const [likes, setLikes] = React.useState(moment.likes || 0);
 
   const loadComments = React.useCallback(() => {
-    fetch(`${API_BASE}/moments/${moment.id}/comments`)
+    apiFetch(`${API_BASE}/moments/${moment.id}/comments`)
       .then((res) => res.ok ? readApiData<MomentComment[]>(res) : Promise.reject())
       .then(setComments)
       .catch(() => setComments([]));
@@ -1892,7 +1888,7 @@ function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment;
   React.useEffect(loadComments, [loadComments]);
 
   async function likeMoment() {
-    const res = await fetch(`${API_BASE}/moments/${moment.id}/like`, { method: 'POST' });
+    const res = await apiFetch(`${API_BASE}/moments/${moment.id}/like`, { method: 'POST' });
     if (!res.ok) return setError(await readError(res));
     const next = await readApiData<Moment>(res);
     setLikes(next.likes || 0);
@@ -1906,10 +1902,10 @@ function MomentInteraction({ moment, currentUser, onChanged }: { moment: Moment;
     if (!currentUser) return setError('请先登录后再评论。');
     if (!text) return setError('请输入评论内容。');
     if (hasUnsafeContent(text)) return setError('评论不能填写手机号、微信号、QQ 号或敏感词。');
-    const res = await fetch(`${API_BASE}/moments/${moment.id}/comments`, {
+    const res = await apiFetch(`${API_BASE}/moments/${moment.id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ author: currentUser.nickname, content: text })
+      body: JSON.stringify({ content: text })
     });
     if (!res.ok) return setError(await readError(res));
     setContent('');
