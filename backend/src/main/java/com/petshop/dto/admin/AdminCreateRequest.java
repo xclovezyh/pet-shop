@@ -1,9 +1,12 @@
 package com.petshop.dto.admin;
 
+import java.util.List;
+
 public class AdminCreateRequest {
     private String username;
     private String password;
     private String displayName;
+    private List<String> permissions;
 
     public String getUsername() {
         return username;
@@ -27,5 +30,13 @@ public class AdminCreateRequest {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public List<String> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(List<String> permissions) {
+        this.permissions = permissions;
     }
 }

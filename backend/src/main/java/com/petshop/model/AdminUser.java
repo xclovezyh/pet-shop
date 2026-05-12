@@ -19,6 +19,8 @@ public class AdminUser {
 
     private String username;
     private String displayName;
+    private String role;
+    private String permissions;
     private String passwordHash;
     private Boolean enabled;
     private LocalDateTime createdAt;

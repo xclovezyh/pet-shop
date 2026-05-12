@@ -39,11 +39,9 @@ async function installApiMocks(page: Page) {
     id: 1,
     username: 'superadmin',
     displayName: '超级管理员',
-    nickname: '超级管理员',
-    phone: '13800000000',
     role: 'SUPER_ADMIN',
+    permissions: [],
     enabled: true,
-    blacklisted: false,
     city: '上海市 浦东新区'
   };
   const normalUser = {
@@ -55,6 +53,15 @@ async function installApiMocks(page: Page) {
     blacklisted: false,
     city: '杭州市 西湖区'
   };
+
+  const permissionOptions = [
+    { code: 'USER_MODERATE', name: '用户治理', description: '查看用户列表、限制与解除限制' },
+    { code: 'REPORT_REVIEW', name: '举报处理', description: '查看举报并执行处理动作' },
+    { code: 'POST_AUDIT', name: '帖子审核', description: '审核、恢复和下架交易帖' },
+    { code: 'MOMENT_AUDIT', name: '动态审核', description: '审核、恢复和下架社区动态' },
+    { code: 'CATEGORY_MANAGE', name: '分类管理', description: '维护主站宠物分类' },
+    { code: 'REGION_VIEW', name: '地区库查看', description: '查看全国省市区标准地区库' }
+  ];
 
   const state = {
     verificationCode: '654321',
@@ -201,6 +208,7 @@ async function installApiMocks(page: Page) {
     }
     if (method === 'GET' && pathname === '/api/admin/auth/me') return route.fulfill(ok(superAdmin));
     if (method === 'POST' && pathname === '/api/admin/auth/logout') return route.fulfill(ok(null, '已退出登录'));
+    if (method === 'GET' && pathname === '/api/admin/accounts/permission-options') return route.fulfill(ok(permissionOptions));
     if (method === 'GET' && pathname === '/api/admin/accounts') return route.fulfill(ok(pageOf([superAdmin], 1, 8)));
     if (method === 'GET' && pathname === '/api/admin/users') return route.fulfill(ok(pageOf(state.users, 1, 10)));
     if (method === 'GET' && pathname === '/api/admin/reports') return route.fulfill(ok(pageOf(state.reports, 1, 8)));

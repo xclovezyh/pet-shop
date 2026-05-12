@@ -1,11 +1,14 @@
 package com.petshop.dto.admin;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class AdminUserResponse {
     private Long id;
     private String username;
     private String displayName;
+    private String role;
+    private List<String> permissions;
     private Boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
@@ -32,6 +35,22 @@ public class AdminUserResponse {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public List<String> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(List<String> permissions) {
+        this.permissions = permissions;
     }
 
     public Boolean getEnabled() {

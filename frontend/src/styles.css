@@ -2356,6 +2356,22 @@ textarea {
   min-height: 152px;
 }
 
+.adminCardTall {
+  min-height: 0;
+}
+
+.adminCardHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.adminCardHeader p {
+  color: #60736a;
+  margin: 4px 0 0;
+}
+
 .adminCard strong {
   color: #213930;
 }
@@ -2526,6 +2542,68 @@ textarea {
 .statusOkay {
   color: #1f5b46;
   font-weight: 900;
+}
+
+.statusNeutral {
+  color: #5d6f66;
+  font-weight: 900;
+}
+
+.permissionPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.permissionPickerCompact {
+  align-items: center;
+}
+
+.permissionCheck {
+  align-items: center;
+  background: #f5f8f6;
+  border: 1px solid #dbe4de;
+  border-radius: 999px;
+  color: #2b4d3e;
+  display: inline-flex;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.permissionCheck input {
+  margin: 0;
+}
+
+.permissionChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.permissionChip {
+  align-items: center;
+  background: #eef4f1;
+  border-radius: 999px;
+  color: #29513f;
+  display: inline-flex;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.permissionChipFull {
+  background: #e7f3ec;
+}
+
+.permissionChipMuted {
+  background: #f3f5f4;
+  color: #6b7b74;
+}
+
+.ghostSmallButton {
+  background: #fff !important;
+  border: 1px solid #ced8d2 !important;
+  color: #355847 !important;
 }
 
 @media (max-width: 1180px) {

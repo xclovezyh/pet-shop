@@ -35,6 +35,8 @@ public class AdminBootstrapInitializer implements CommandLineRunner {
             AdminUser adminUser = new AdminUser();
             adminUser.setUsername(legacyAdmin.getUsername());
             adminUser.setDisplayName(isBlank(legacyAdmin.getNickname()) ? legacyAdmin.getUsername() : legacyAdmin.getNickname());
+            adminUser.setRole(AdminRole.SUPER_ADMIN.name());
+            adminUser.setPermissions("");
             adminUser.setPasswordHash(legacyAdmin.getPasswordHash());
             adminUser.setEnabled(true);
             adminUser.setCreatedAt(legacyAdmin.getCreatedAt() == null ? LocalDateTime.now() : legacyAdmin.getCreatedAt());
@@ -45,6 +47,8 @@ public class AdminBootstrapInitializer implements CommandLineRunner {
             AdminUser adminUser = new AdminUser();
             adminUser.setUsername("superadmin");
             adminUser.setDisplayName("superadmin");
+            adminUser.setRole(AdminRole.SUPER_ADMIN.name());
+            adminUser.setPermissions("");
             adminUser.setPasswordHash(DEFAULT_ADMIN_HASH);
             adminUser.setEnabled(true);
             adminUser.setCreatedAt(LocalDateTime.now());

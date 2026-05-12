@@ -4,6 +4,8 @@ import com.petshop.api.ApiResponse;
 import com.petshop.dto.admin.AdminAuthSessionResponse;
 import com.petshop.dto.admin.AdminCreateRequest;
 import com.petshop.dto.admin.AdminLoginRequest;
+import com.petshop.dto.admin.AdminPermissionOptionResponse;
+import com.petshop.dto.admin.AdminPermissionUpdateRequest;
 import com.petshop.dto.admin.AdminUserResponse;
 import com.petshop.dto.category.PetCategoryRequest;
 import com.petshop.dto.category.PetCategoryResponse;
@@ -25,6 +27,7 @@ import com.petshop.service.PetCategoryService;
 import com.petshop.service.ReferenceDataService;
 import com.petshop.service.UserService;
 import com.petshop.support.AdminGuard;
+import com.petshop.support.AdminPermission;
 import com.petshop.support.AuthenticationFilter;
 import com.petshop.support.CurrentAdmin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -90,14 +93,20 @@ public class AdminController {
     public ApiResponse<PageResponse<AdminUserResponse>> adminAccounts(@CurrentAdmin AdminUser adminUser,
                                                                       @RequestParam(defaultValue = "1") Integer page,
                                                                       @RequestParam(defaultValue = "8") Integer size) {
-        AdminGuard.requireAuthenticated(adminUser, "查看管理员账号");
+        AdminGuard.requireSuperAdmin(adminUser, "查看管理员账号");
         return ApiResponse.success(adminAuthService.list(page, size));
+    }
+
+    @GetMapping("/accounts/permission-options")
+    public ApiResponse<List<AdminPermissionOptionResponse>> permissionOptions(@CurrentAdmin AdminUser adminUser) {
+        AdminGuard.requireSuperAdmin(adminUser, "查看管理员权限模板");
+        return ApiResponse.success(adminAuthService.permissionOptions());
     }
 
     @PostMapping("/accounts")
     public ApiResponse<AdminUserResponse> createAdmin(@CurrentAdmin AdminUser adminUser,
                                                       @RequestBody AdminCreateRequest request) {
-        AdminGuard.requireAuthenticated(adminUser, "创建管理员账号");
+        AdminGuard.requireSuperAdmin(adminUser, "创建管理员账号");
         return ApiResponse.success("管理员账号已创建", adminAuthService.create(request));
     }
 
@@ -105,15 +114,23 @@ public class AdminController {
     public ApiResponse<AdminUserResponse> updateAdminStatus(@PathVariable Long id,
                                                             @CurrentAdmin AdminUser adminUser,
                                                             @RequestParam boolean enabled) {
-        AdminGuard.requireAuthenticated(adminUser, "维护管理员账号");
-        return ApiResponse.success("管理员状态已更新", adminAuthService.updateStatus(id, enabled));
+        AdminUser currentAdmin = AdminGuard.requireSuperAdmin(adminUser, "维护管理员账号");
+        return ApiResponse.success("管理员状态已更新", adminAuthService.updateStatus(id, enabled, currentAdmin));
+    }
+
+    @PutMapping("/accounts/{id}/permissions")
+    public ApiResponse<AdminUserResponse> updateAdminPermissions(@PathVariable Long id,
+                                                                 @CurrentAdmin AdminUser adminUser,
+                                                                 @RequestBody AdminPermissionUpdateRequest request) {
+        AdminUser currentAdmin = AdminGuard.requireSuperAdmin(adminUser, "分配管理员权限");
+        return ApiResponse.success("管理员权限已更新", adminAuthService.updatePermissions(id, request == null ? null : request.getPermissions(), currentAdmin));
     }
 
     @GetMapping("/users")
     public ApiResponse<PageResponse<UserResponse>> users(@CurrentAdmin AdminUser adminUser,
                                                          @RequestParam(defaultValue = "1") Integer page,
                                                          @RequestParam(defaultValue = "10") Integer size) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看用户列表");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "查看用户列表");
         return ApiResponse.success(userService.list(currentAdmin.getUsername(), page, size));
     }
 
@@ -121,13 +138,13 @@ public class AdminController {
     public ApiResponse<UserResponse> blacklist(@PathVariable Long id,
                                                @CurrentAdmin AdminUser adminUser,
                                                @RequestParam(defaultValue = "账号存在违规行为") String reason) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "限制用户账号");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "限制用户账号");
         return ApiResponse.success("用户账号已限制", userService.blacklist(id, currentAdmin.getUsername(), reason));
     }
 
     @PutMapping("/users/{id}/unblacklist")
     public ApiResponse<UserResponse> unblacklist(@PathVariable Long id, @CurrentAdmin AdminUser adminUser) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "解除用户限制");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "解除用户限制");
         return ApiResponse.success("用户账号已解除限制", userService.unblacklist(id, currentAdmin.getUsername()));
     }
 
@@ -135,7 +152,7 @@ public class AdminController {
     public ApiResponse<PageResponse<ContentReportResponse>> reports(@CurrentAdmin AdminUser adminUser,
                                                                     @RequestParam(defaultValue = "1") Integer page,
                                                                     @RequestParam(defaultValue = "8") Integer size) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看举报记录");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REPORT_REVIEW, "查看举报记录");
         return ApiResponse.success(contentReportService.adminReports(currentAdmin.getUsername(), page, size));
     }
 
@@ -143,7 +160,7 @@ public class AdminController {
     public ApiResponse<ContentReportResponse> handleReport(@PathVariable Long id,
                                                            @CurrentAdmin AdminUser adminUser,
                                                            @RequestBody(required = false) ContentReportHandleRequest request) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "处理举报");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REPORT_REVIEW, "处理举报");
         return ApiResponse.success("举报已处理", contentReportService.handle(id, currentAdmin.getUsername(), request));
     }
 
@@ -151,7 +168,7 @@ public class AdminController {
     public ApiResponse<PageResponse<MarketPostResponse>> posts(@CurrentAdmin AdminUser adminUser,
                                                                @RequestParam(defaultValue = "1") Integer page,
                                                                @RequestParam(defaultValue = "8") Integer size) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看帖子审核列表");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.POST_AUDIT, "查看帖子审核列表");
         return ApiResponse.success(marketPostService.adminList(currentAdmin.getUsername(), page, size));
     }
 
@@ -159,7 +176,7 @@ public class AdminController {
     public ApiResponse<MarketPostResponse> auditPost(@PathVariable Long id,
                                                      @CurrentAdmin AdminUser adminUser,
                                                      @RequestParam String status) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "审核帖子");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.POST_AUDIT, "审核帖子");
         return ApiResponse.success("帖子审核状态已更新", marketPostService.audit(id, currentAdmin.getUsername(), status));
     }
 
@@ -167,7 +184,7 @@ public class AdminController {
     public ApiResponse<PageResponse<MomentResponse>> moments(@CurrentAdmin AdminUser adminUser,
                                                              @RequestParam(defaultValue = "1") Integer page,
                                                              @RequestParam(defaultValue = "8") Integer size) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看日常审核列表");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.MOMENT_AUDIT, "查看动态审核列表");
         return ApiResponse.success(momentService.adminList(currentAdmin.getUsername(), page, size));
     }
 
@@ -175,22 +192,22 @@ public class AdminController {
     public ApiResponse<MomentResponse> auditMoment(@PathVariable Long id,
                                                    @CurrentAdmin AdminUser adminUser,
                                                    @RequestParam String status) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "审核日常内容");
-        return ApiResponse.success("日常审核状态已更新", momentService.audit(id, currentAdmin.getUsername(), status));
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.MOMENT_AUDIT, "审核动态内容");
+        return ApiResponse.success("动态审核状态已更新", momentService.audit(id, currentAdmin.getUsername(), status));
     }
 
     @GetMapping("/categories")
     public ApiResponse<PageResponse<PetCategoryResponse>> categories(@CurrentAdmin AdminUser adminUser,
                                                                      @RequestParam(defaultValue = "1") Integer page,
                                                                      @RequestParam(defaultValue = "10") Integer size) {
-        AdminGuard.requireAuthenticated(adminUser, "查看分类配置");
+        AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "查看分类配置");
         return ApiResponse.success(petCategoryService.adminList(page, size));
     }
 
     @PostMapping("/categories")
     public ApiResponse<PetCategoryResponse> createCategory(@CurrentAdmin AdminUser adminUser,
                                                            @RequestBody PetCategoryRequest request) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "创建分类");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "创建分类");
         return ApiResponse.success("分类已创建", petCategoryService.create(currentAdmin.getUsername(), request));
     }
 
@@ -198,13 +215,13 @@ public class AdminController {
     public ApiResponse<PetCategoryResponse> updateCategory(@PathVariable Long id,
                                                            @CurrentAdmin AdminUser adminUser,
                                                            @RequestBody PetCategoryRequest request) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "更新分类");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "更新分类");
         return ApiResponse.success("分类已更新", petCategoryService.update(id, currentAdmin.getUsername(), request));
     }
 
     @DeleteMapping("/categories/{id}")
     public ApiResponse<Void> deleteCategory(@PathVariable Long id, @CurrentAdmin AdminUser adminUser) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "删除分类");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "删除分类");
         petCategoryService.delete(id, currentAdmin.getUsername());
         return ApiResponse.success("分类已删除", null);
     }
@@ -213,13 +230,13 @@ public class AdminController {
     public ApiResponse<PageResponse<RegionAreaResponse>> regions(@CurrentAdmin AdminUser adminUser,
                                                                  @RequestParam(defaultValue = "1") Integer page,
                                                                  @RequestParam(defaultValue = "10") Integer size) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看地区库");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REGION_VIEW, "查看地区库");
         return ApiResponse.success(referenceDataService.regionAdminList(currentAdmin.getUsername(), page, size));
     }
 
     @GetMapping("/regions/tree")
     public ApiResponse<List<AdminRegionProvinceResponse>> regionTree(@CurrentAdmin AdminUser adminUser) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看地区库层级");
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REGION_VIEW, "查看地区库层级");
         return ApiResponse.success(referenceDataService.regionAdminTree(currentAdmin.getUsername()));
     }
 }

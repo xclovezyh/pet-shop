@@ -20,16 +20,27 @@ import { readApiData, readError } from './api';
 const API_BASE = '/api/admin';
 const ADMIN_STORAGE_KEY = 'petshop_admin_session';
 
+type AdminPermissionCode =
+  | 'USER_MODERATE'
+  | 'REPORT_REVIEW'
+  | 'POST_AUDIT'
+  | 'MOMENT_AUDIT'
+  | 'CATEGORY_MANAGE'
+  | 'REGION_VIEW';
+
 type AdminProfile = {
   id: number;
   username: string;
   displayName?: string;
+  role: 'SUPER_ADMIN' | 'ADMIN';
+  permissions: AdminPermissionCode[];
   enabled: boolean;
   createdAt?: string;
   lastLoginAt?: string;
 };
 
 type AdminSession = { token: string; admin: AdminProfile };
+type PermissionOption = { code: AdminPermissionCode; name: string; description: string };
 type UserProfile = { id: number; nickname: string; username?: string; city?: string; blacklisted?: boolean };
 type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reason: string; status: string };
 type MarketPost = { id: number; title: string; author: string; category: string; city: string; description: string; auditStatus?: string };
@@ -57,6 +68,15 @@ const TAB_PAGE_SIZES: Record<Exclude<TabKey, 'regions'>, number> = {
   moments: 6,
   categories: 8
 };
+
+const FALLBACK_PERMISSION_OPTIONS: PermissionOption[] = [
+  { code: 'USER_MODERATE', name: '用户治理', description: '查看用户列表、限制与解除限制' },
+  { code: 'REPORT_REVIEW', name: '举报处理', description: '查看举报并执行处理动作' },
+  { code: 'POST_AUDIT', name: '帖子审核', description: '审核、恢复和下架交易帖' },
+  { code: 'MOMENT_AUDIT', name: '动态审核', description: '审核、恢复和下架社区动态' },
+  { code: 'CATEGORY_MANAGE', name: '分类管理', description: '维护主站宠物分类' },
+  { code: 'REGION_VIEW', name: '地区库查看', description: '查看全国省市区标准地区库' }
+];
 
 const EMPTY_PAGE = <T,>(size: number): PageResult<T> => ({
   items: [],
@@ -108,6 +128,7 @@ function AdminApp() {
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
+  const [permissionOptions, setPermissionOptions] = React.useState<PermissionOption[]>(FALLBACK_PERMISSION_OPTIONS);
   const [accounts, setAccounts] = React.useState<PageResult<AdminProfile>>(EMPTY_PAGE(TAB_PAGE_SIZES.accounts));
   const [users, setUsers] = React.useState<PageResult<UserProfile>>(EMPTY_PAGE(TAB_PAGE_SIZES.users));
   const [reports, setReports] = React.useState<PageResult<ContentReport>>(EMPTY_PAGE(TAB_PAGE_SIZES.reports));
@@ -116,24 +137,26 @@ function AdminApp() {
   const [categories, setCategories] = React.useState<PageResult<Category>>(EMPTY_PAGE(TAB_PAGE_SIZES.categories));
   const [regionTree, setRegionTree] = React.useState<AdminRegionProvince[]>([]);
 
-  const [adminForm, setAdminForm] = React.useState({ username: '', password: '', displayName: '' });
+  const [adminForm, setAdminForm] = React.useState({ username: '', password: '', displayName: '', permissions: [] as AdminPermissionCode[] });
   const [categoryForm, setCategoryForm] = React.useState({ name: '', description: '', tags: '' });
+  const [permissionDrafts, setPermissionDrafts] = React.useState<Record<number, AdminPermissionCode[]>>({});
   const [regionKeyword, setRegionKeyword] = React.useState('');
   const [selectedProvinceCode, setSelectedProvinceCode] = React.useState('');
 
-  const tabs: Array<{ key: TabKey; label: string; helper: string; icon: React.ReactNode }> = [
-    { key: 'accounts', label: '管理员账号', helper: '独立维护后台账号与状态', icon: <UserPlus size={16} /> },
-    { key: 'users', label: '用户管理', helper: '分页处理普通用户治理动作', icon: <Users size={16} /> },
-    { key: 'reports', label: '举报处理', helper: '按批次处理待审核内容', icon: <Flag size={16} /> },
-    { key: 'posts', label: '帖子审核', helper: '集中审核交易与领养内容', icon: <FileText size={16} /> },
-    { key: 'moments', label: '日常审核', helper: '查看和处理社区动态内容', icon: <Sparkles size={16} /> },
-    { key: 'categories', label: '分类管理', helper: '维护主站分类与标签描述', icon: <Tags size={16} /> },
-    { key: 'regions', label: '地区库', helper: '按省市区浏览全国标准地区库，仅支持筛选查看', icon: <MapPin size={16} /> }
+  const tabs: Array<{ key: TabKey; label: string; helper: string; icon: React.ReactNode; permission?: AdminPermissionCode; superAdminOnly?: boolean }> = [
+    { key: 'accounts', label: '管理员账号', helper: '创建管理员并分配后台权限', icon: <UserPlus size={16} />, superAdminOnly: true },
+    { key: 'users', label: '用户管理', helper: '分页处理普通用户治理动作', icon: <Users size={16} />, permission: 'USER_MODERATE' },
+    { key: 'reports', label: '举报处理', helper: '按批次处理待审核内容', icon: <Flag size={16} />, permission: 'REPORT_REVIEW' },
+    { key: 'posts', label: '帖子审核', helper: '集中审核交易与领养内容', icon: <FileText size={16} />, permission: 'POST_AUDIT' },
+    { key: 'moments', label: '动态审核', helper: '查看和处理社区动态内容', icon: <Sparkles size={16} />, permission: 'MOMENT_AUDIT' },
+    { key: 'categories', label: '分类管理', helper: '维护主站分类与标签描述', icon: <Tags size={16} />, permission: 'CATEGORY_MANAGE' },
+    { key: 'regions', label: '地区库', helper: '按省市区浏览全国标准地区库', icon: <MapPin size={16} />, permission: 'REGION_VIEW' }
   ];
 
-  const currentTab = tabs.find((item) => item.key === tab)!;
-  const activePage = tab === 'regions' ? 1 : pages[tab];
-  const activeSize = tab === 'regions' ? 0 : TAB_PAGE_SIZES[tab];
+  const visibleTabs = React.useMemo(() => tabs.filter((item) => hasTabAccess(session?.admin, item)), [session]);
+  const currentTab = visibleTabs.find((item) => item.key === tab) || visibleTabs[0] || null;
+  const activePage = currentTab?.key === 'regions' ? 1 : (currentTab ? pages[currentTab.key] : 1);
+  const activeSize = currentTab?.key === 'regions' ? 0 : (currentTab ? TAB_PAGE_SIZES[currentTab.key] : 0);
 
   const filteredRegionTree = React.useMemo(() => filterRegionTree(regionTree, regionKeyword), [regionTree, regionKeyword]);
   const regionSummary = React.useMemo(() => summarizeRegionTree(filteredRegionTree), [filteredRegionTree]);
@@ -141,6 +164,13 @@ function AdminApp() {
     () => filteredRegionTree.find((item) => item.areaCode === selectedProvinceCode) || filteredRegionTree[0] || null,
     [filteredRegionTree, selectedProvinceCode]
   );
+
+  const loadPermissionOptions = React.useCallback(async () => {
+    if (!session || session.admin.role !== 'SUPER_ADMIN') return;
+    const res = await adminFetch('/accounts/permission-options');
+    if (!res.ok) return;
+    setPermissionOptions(await readApiData<PermissionOption[]>(res));
+  }, [session]);
 
   const loadTab = React.useCallback(async (nextTab: TabKey, nextPage?: number) => {
     if (!getStoredSession()) return;
@@ -161,7 +191,17 @@ function AdminApp() {
       if (nextTab === 'accounts') {
         const res = await adminFetch(`/accounts${query}`);
         if (!res.ok) throw new Error(await readError(res));
-        setAccounts(await readApiData<PageResult<AdminProfile>>(res));
+        const result = await readApiData<PageResult<AdminProfile>>(res);
+        setAccounts(result);
+        setPermissionDrafts((prev) => {
+          const next = { ...prev };
+          result.items.forEach((item) => {
+            if (!next[item.id]) {
+              next[item.id] = item.permissions || [];
+            }
+          });
+          return next;
+        });
       } else if (nextTab === 'users') {
         const res = await adminFetch(`/users${query}`);
         if (!res.ok) throw new Error(await readError(res));
@@ -206,10 +246,23 @@ function AdminApp() {
   }, []);
 
   React.useEffect(() => {
-    if (!session) return;
-    const nextPage = tab === 'regions' ? undefined : pages[tab];
-    void loadTab(tab, nextPage);
-  }, [session, tab, pages, loadTab]);
+    if (!visibleTabs.length) return;
+    if (!currentTab || !visibleTabs.some((item) => item.key === tab)) {
+      setTab(visibleTabs[0].key);
+    }
+  }, [visibleTabs, currentTab, tab]);
+
+  React.useEffect(() => {
+    if (!session || !currentTab) return;
+    const nextPage = currentTab.key === 'regions' ? undefined : pages[currentTab.key];
+    void loadTab(currentTab.key, nextPage);
+  }, [session, currentTab, pages, loadTab]);
+
+  React.useEffect(() => {
+    if (session?.admin.role === 'SUPER_ADMIN') {
+      void loadPermissionOptions();
+    }
+  }, [session, loadPermissionOptions]);
 
   React.useEffect(() => {
     if (!filteredRegionTree.length) {
@@ -240,7 +293,6 @@ function AdminApp() {
     const next = await readApiData<AdminSession>(res);
     setSession(next);
     saveSession(next);
-    setTab('accounts');
     setNotice('管理员登录成功。');
   }
 
@@ -262,9 +314,34 @@ function AdminApp() {
       return;
     }
     setNotice('管理员账号已创建。');
-    setAdminForm({ username: '', password: '', displayName: '' });
+    setAdminForm({ username: '', password: '', displayName: '', permissions: [] });
     setPages((prev) => ({ ...prev, accounts: 1 }));
     await loadTab('accounts', 1);
+  }
+
+  async function updateAdminPermissions(id: number) {
+    setError('');
+    const res = await adminFetch(`/accounts/${id}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: permissionDrafts[id] || [] })
+    });
+    if (!res.ok) {
+      setError(await readError(res));
+      return;
+    }
+    setNotice('管理员权限已更新。');
+    await loadTab('accounts', pages.accounts);
+  }
+
+  async function toggleAdminStatus(item: AdminProfile) {
+    setError('');
+    const res = await adminFetch(`/accounts/${item.id}/status?enabled=${String(!item.enabled)}`, { method: 'PUT' });
+    if (!res.ok) {
+      setError(await readError(res));
+      return;
+    }
+    setNotice(item.enabled ? '管理员已停用。' : '管理员已启用。');
+    await loadTab('accounts', pages.accounts);
   }
 
   async function toggleUser(user: UserProfile) {
@@ -354,6 +431,27 @@ function AdminApp() {
     );
   }
 
+  if (!visibleTabs.length || !currentTab) {
+    return (
+      <main className="adminStandalone adminWorkbench">
+        <header className="adminTopbar">
+          <div className="adminTopbarTitle">
+            <strong>萌宠集市管理台</strong>
+            <span>{session.admin.displayName || session.admin.username}</span>
+          </div>
+          <button type="button" className="ghostButton" onClick={logout}><LogOut size={16} />退出</button>
+        </header>
+        <section className="adminWorkspace">
+          <div className="adminPanel">
+            <div className="adminPanelBody">
+              <p className="emptyState">当前管理员尚未被授予任何后台权限，请联系超级管理员分配。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="adminStandalone adminWorkbench">
       <header className="adminTopbar">
@@ -366,12 +464,12 @@ function AdminApp() {
 
       <section className="adminLayout">
         <aside data-testid="admin-tabs" className="adminSidebar">
-          {tabs.map((item) => (
+          {visibleTabs.map((item) => (
             <button
               data-testid={`admin-tab-${item.key}`}
               key={item.key}
               type="button"
-              className={tab === item.key ? 'active' : ''}
+              className={currentTab.key === item.key ? 'active' : ''}
               onClick={() => setTab(item.key)}
             >
               {item.icon}
@@ -387,7 +485,7 @@ function AdminApp() {
               <p>{currentTab.helper}</p>
             </div>
             <div className="workspaceMeta">
-              {tab === 'regions'
+              {currentTab.key === 'regions'
                 ? (
                   <>
                     <span>{regionSummary.provinces} 省级</span>
@@ -408,30 +506,85 @@ function AdminApp() {
           {error && <p className="formError">{error}</p>}
           {notice && <p className="formNote">{notice}</p>}
 
-          {tab === 'accounts' && (
-            <DataPanel title="后台账号列表" total={accounts.total} page={accounts} onPageChange={(next) => setPages((prev) => ({ ...prev, accounts: next }))}>
+          {currentTab.key === 'accounts' && (
+            <DataPanel title="管理员账号" total={accounts.total} page={accounts} onPageChange={(next) => setPages((prev) => ({ ...prev, accounts: next }))}>
               <form data-testid="admin-account-create" className="adminInlineForm adminInlineFormWide" onSubmit={createAdmin}>
                 <input value={adminForm.username} onChange={(event) => setAdminForm({ ...adminForm, username: event.target.value })} placeholder="管理员用户名" />
                 <input value={adminForm.displayName} onChange={(event) => setAdminForm({ ...adminForm, displayName: event.target.value })} placeholder="显示名称" />
                 <input value={adminForm.password} onChange={(event) => setAdminForm({ ...adminForm, password: event.target.value })} type="password" placeholder="初始密码" />
+                <div className="permissionPicker permissionPickerCompact">
+                  {permissionOptions.map((option) => (
+                    <label key={option.code} className="permissionCheck">
+                      <input
+                        type="checkbox"
+                        checked={adminForm.permissions.includes(option.code)}
+                        onChange={() => setAdminForm((prev) => ({
+                          ...prev,
+                          permissions: togglePermission(prev.permissions, option.code)
+                        }))}
+                      />
+                      <span>{option.name}</span>
+                    </label>
+                  ))}
+                </div>
                 <button type="submit">新建管理员</button>
               </form>
-              <div className="adminCardGrid adminCardGridTight">
+
+              <div className="adminCardGrid">
                 {accounts.items.map((item) => (
-                  <article className="adminCard" key={item.id}>
-                    <strong>{item.displayName || item.username}</strong>
-                    <p>{item.username}</p>
+                  <article className="adminCard adminCardTall" key={item.id}>
+                    <div className="adminCardHeader">
+                      <div>
+                        <strong>{item.displayName || item.username}</strong>
+                        <p>{item.username}</p>
+                      </div>
+                      <span className={item.role === 'SUPER_ADMIN' ? 'statusOkay' : 'statusNeutral'}>
+                        {item.role === 'SUPER_ADMIN' ? '超级管理员' : '普通管理员'}
+                      </span>
+                    </div>
                     <div className="adminCardMeta">
                       <span>{item.enabled ? '启用中' : '已停用'}</span>
                       <span>{item.lastLoginAt ? `最近登录 ${formatTime(item.lastLoginAt)}` : '尚未登录'}</span>
                     </div>
+                    <div className="permissionChipRow">
+                      {item.role === 'SUPER_ADMIN'
+                        ? <span className="permissionChip permissionChipFull">拥有全部权限</span>
+                        : (item.permissions.length
+                          ? item.permissions.map((code) => <span key={code} className="permissionChip">{permissionLabel(permissionOptions, code)}</span>)
+                          : <span className="permissionChip permissionChipMuted">未分配任何权限</span>)}
+                    </div>
+                    {item.role !== 'SUPER_ADMIN' && (
+                      <>
+                        <div className="permissionPicker">
+                          {permissionOptions.map((option) => (
+                            <label key={option.code} className="permissionCheck">
+                              <input
+                                type="checkbox"
+                                checked={(permissionDrafts[item.id] || item.permissions).includes(option.code)}
+                                onChange={() => setPermissionDrafts((prev) => ({
+                                  ...prev,
+                                  [item.id]: togglePermission(prev[item.id] || item.permissions, option.code)
+                                }))}
+                              />
+                              <span>{option.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="adminCardActions">
+                          <button type="button" onClick={() => updateAdminPermissions(item.id)}>保存权限</button>
+                          <button type="button" className="ghostSmallButton" onClick={() => toggleAdminStatus(item)}>
+                            {item.enabled ? '停用账号' : '启用账号'}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </article>
                 ))}
               </div>
             </DataPanel>
           )}
 
-          {tab === 'users' && (
+          {currentTab.key === 'users' && (
             <DataPanel title="普通用户" total={users.total} page={users} onPageChange={(next) => setPages((prev) => ({ ...prev, users: next }))}>
               <div className="adminCardGrid">
                 {users.items.map((item) => (
@@ -450,12 +603,12 @@ function AdminApp() {
             </DataPanel>
           )}
 
-          {tab === 'reports' && (
+          {currentTab.key === 'reports' && (
             <DataPanel title="举报处理" total={reports.total} page={reports} onPageChange={(next) => setPages((prev) => ({ ...prev, reports: next }))}>
               <div className="adminCardGrid">
                 {reports.items.map((item) => (
                   <article className="adminCard" key={item.id}>
-                    <strong>{item.targetType === 'post' ? '交易帖' : '日常动态'} #{item.targetId}</strong>
+                    <strong>{item.targetType === 'post' ? '交易帖' : '动态'} #{item.targetId}</strong>
                     <p>{item.reason}</p>
                     <div className="adminCardActions">
                       <span>{item.status}</span>
@@ -470,7 +623,7 @@ function AdminApp() {
             </DataPanel>
           )}
 
-          {tab === 'posts' && (
+          {currentTab.key === 'posts' && (
             <DataPanel title="帖子审核" total={posts.total} page={posts} onPageChange={(next) => setPages((prev) => ({ ...prev, posts: next }))}>
               <div className="adminCardGrid">
                 {posts.items.map((item) => (
@@ -491,8 +644,8 @@ function AdminApp() {
             </DataPanel>
           )}
 
-          {tab === 'moments' && (
-            <DataPanel title="日常审核" total={moments.total} page={moments} onPageChange={(next) => setPages((prev) => ({ ...prev, moments: next }))}>
+          {currentTab.key === 'moments' && (
+            <DataPanel title="动态审核" total={moments.total} page={moments} onPageChange={(next) => setPages((prev) => ({ ...prev, moments: next }))}>
               <div className="adminCardGrid">
                 {moments.items.map((item) => (
                   <article className="adminCard" key={item.id}>
@@ -512,7 +665,7 @@ function AdminApp() {
             </DataPanel>
           )}
 
-          {tab === 'categories' && (
+          {currentTab.key === 'categories' && (
             <DataPanel title="分类配置" total={categories.total} page={categories} onPageChange={(next) => setPages((prev) => ({ ...prev, categories: next }))}>
               <form data-testid="admin-category-create" className="adminInlineForm adminInlineFormWide" onSubmit={createCategory}>
                 <input value={categoryForm.name} onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })} placeholder="分类名称" />
@@ -535,7 +688,7 @@ function AdminApp() {
             </DataPanel>
           )}
 
-          {tab === 'regions' && (
+          {currentTab.key === 'regions' && (
             <RegionLibraryPanel
               regionKeyword={regionKeyword}
               onRegionKeyword={setRegionKeyword}
@@ -661,6 +814,22 @@ function PaginationBar({ page, totalPages, total, onPageChange }: { page: number
       </div>
     </div>
   );
+}
+
+function hasTabAccess(admin: AdminProfile | null | undefined, tab: { permission?: AdminPermissionCode; superAdminOnly?: boolean }) {
+  if (!admin) return false;
+  if (admin.role === 'SUPER_ADMIN') return true;
+  if (tab.superAdminOnly) return false;
+  if (!tab.permission) return false;
+  return admin.permissions.includes(tab.permission);
+}
+
+function togglePermission(list: AdminPermissionCode[], code: AdminPermissionCode) {
+  return list.includes(code) ? list.filter((item) => item !== code) : [...list, code];
+}
+
+function permissionLabel(options: PermissionOption[], code: AdminPermissionCode) {
+  return options.find((item) => item.code === code)?.name || code;
 }
 
 function filterRegionTree(tree: AdminRegionProvince[], keyword: string) {
