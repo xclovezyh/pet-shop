@@ -1,12 +1,13 @@
 package com.petshop.dto.reference;
 
-public class RegionAreaResponse {
+import java.util.List;
+
+public class AdminRegionCityResponse {
     private Long id;
     private String name;
     private String areaCode;
-    private String level;
-    private Long parentId;
-    private Integer sortOrder;
+    private Integer districtCount;
+    private List<AdminRegionDistrictResponse> districts;
 
     public Long getId() {
         return id;
@@ -32,27 +33,19 @@ public class RegionAreaResponse {
         this.areaCode = areaCode;
     }
 
-    public String getLevel() {
-        return level;
+    public Integer getDistrictCount() {
+        return districtCount;
     }
 
-    public void setLevel(String level) {
-        this.level = level;
+    public void setDistrictCount(Integer districtCount) {
+        this.districtCount = districtCount;
     }
 
-    public Long getParentId() {
-        return parentId;
+    public List<AdminRegionDistrictResponse> getDistricts() {
+        return districts;
     }
 
-    public void setParentId(Long parentId) {
-        this.parentId = parentId;
-    }
-
-    public Integer getSortOrder() {
-        return sortOrder;
-    }
-
-    public void setSortOrder(Integer sortOrder) {
-        this.sortOrder = sortOrder;
+    public void setDistricts(List<AdminRegionDistrictResponse> districts) {
+        this.districts = districts;
     }
 }

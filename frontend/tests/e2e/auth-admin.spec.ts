@@ -105,8 +105,25 @@ async function installApiMocks(page: Page) {
       { id: 2, name: '狗狗', description: '活泼外向。', tags: '陪伴,社交' }
     ],
     regions: [
-      { id: 1, name: '上海市', level: 'province', parentId: null, sortOrder: 1 },
-      { id: 2, name: '浦东新区', level: 'city', parentId: 1, sortOrder: 1 }
+      {
+        id: 1,
+        name: '上海市',
+        areaCode: '310000',
+        cityCount: 1,
+        districtCount: 2,
+        cities: [
+          {
+            id: 2,
+            name: '上海市',
+            areaCode: '310100',
+            districtCount: 2,
+            districts: [
+              { id: 3, name: '浦东新区', areaCode: '310115' },
+              { id: 4, name: '徐汇区', areaCode: '310104' }
+            ]
+          }
+        ]
+      }
     ],
     passwordLogins: [] as Array<{ account: string; password: string }>,
     smsLogins: [] as Array<{ phone: string; code: string }>,
@@ -190,7 +207,7 @@ async function installApiMocks(page: Page) {
     if (method === 'GET' && pathname === '/api/admin/posts') return route.fulfill(ok(pageOf(state.posts, 1, 8)));
     if (method === 'GET' && pathname === '/api/admin/moments') return route.fulfill(ok(pageOf(state.moments, 1, 8)));
     if (method === 'GET' && pathname === '/api/admin/categories') return route.fulfill(ok(pageOf(state.categories, 1, 10)));
-    if (method === 'GET' && pathname === '/api/admin/regions') return route.fulfill(ok(pageOf(state.regions, 1, 10)));
+    if (method === 'GET' && pathname === '/api/admin/regions/tree') return route.fulfill(ok(state.regions));
     if (method === 'PUT' && pathname === '/api/admin/users/2/blacklist') {
       const user = state.users.find((item) => item.id === 2);
       if (user) user.blacklisted = true;
@@ -250,6 +267,7 @@ test('super admin can login and complete key admin console paths', async ({ page
 
   await page.getByTestId('admin-tab-regions').click();
   await expect(page.getByTestId('admin-tab-regions')).toHaveClass(/active/);
+  await expect(page.getByText('全国地区库')).toBeVisible();
 });
 
 test('sms login should keep normal user out of admin entry', async ({ page }) => {

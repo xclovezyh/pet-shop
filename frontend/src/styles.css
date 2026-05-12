@@ -2374,6 +2374,150 @@ textarea {
   justify-content: flex-end;
 }
 
+.adminPanelHeaderStack {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+}
+
+.regionSearch {
+  align-items: center;
+  background: #f7faf8;
+  border: 1px solid #dce5df;
+  border-radius: 6px;
+  color: #597065;
+  display: flex;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.regionSearch input {
+  background: transparent;
+  border: 0;
+  color: #1d352c;
+  min-height: 42px;
+  min-width: 0;
+  outline: none;
+  width: 100%;
+}
+
+.regionWorkbench {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.regionProvinceRail {
+  background: #f7faf8;
+  border: 1px solid #e1e9e4;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  height: fit-content;
+  max-height: 72vh;
+  overflow: auto;
+  padding: 10px;
+}
+
+.regionProvinceRail button {
+  background: #fff;
+  border: 1px solid #dce5df;
+  border-radius: 6px;
+  color: #244b3b;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.regionProvinceRail button strong,
+.regionDetailHeader h3,
+.regionCityHeader strong {
+  margin: 0;
+}
+
+.regionProvinceRail button span,
+.regionDetailHeader p,
+.regionCityHeader span,
+.regionCityHeader em {
+  color: #61756b;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.regionProvinceRail button.active {
+  background: #1f5b46;
+  border-color: #1f5b46;
+  color: #fff;
+}
+
+.regionProvinceRail button.active span {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.regionDetailPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.regionDetailHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.regionSummaryChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.regionSummaryChips span,
+.regionDistrictChip {
+  align-items: center;
+  background: #eef4f1;
+  border-radius: 999px;
+  color: #29513f;
+  display: inline-flex;
+  min-height: 30px;
+  padding: 0 12px;
+}
+
+.regionCityGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.regionCityCard {
+  background: #fff;
+  border: 1px solid #e0e8e3;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.regionCityHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.regionCityHeader > div {
+  display: grid;
+  gap: 4px;
+}
+
+.regionDistrictChipGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .statusDanger {
   color: #a44135;
   font-weight: 900;
@@ -2386,7 +2530,8 @@ textarea {
 
 @media (max-width: 1180px) {
   .adminCardGrid,
-  .adminCardGridTight {
+  .adminCardGridTight,
+  .regionCityGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -2407,5 +2552,15 @@ textarea {
 
   .adminInlineFormWide {
     grid-template-columns: 1fr;
+  }
+
+  .regionWorkbench,
+  .regionDetailHeader {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .regionProvinceRail {
+    max-height: none;
   }
 }

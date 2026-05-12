@@ -154,6 +154,21 @@ http://127.0.0.1:5173/admin.html
 - `size` 默认按接口配置取值
 - 最大 `size` 限制为 50
 
+## 地区库说明
+
+地区库已调整为“标准基础库”模式：
+
+- 管理台按省 / 市 / 区县三级结构浏览，不再平铺堆叠全部数据
+- 管理台地区库只支持筛选查看，不再支持后台手工新增、编辑、删除
+- 全国地区数据来自民政部公开的 `2023 年中华人民共和国县以上行政区划代码`
+- 数据迁移脚本位于：
+  - [backend/src/main/resources/db/migration/V8__national_regions.sql](/H:/study-code/pet-shop/backend/src/main/resources/db/migration/V8__national_regions.sql)
+  - [scripts/generate_mca_regions_sql.py](/H:/study-code/pet-shop/scripts/generate_mca_regions_sql.py)
+
+当前管理台地区树接口：
+
+- `GET /api/admin/regions/tree`
+
 ## 当前重要约束
 
 - 普通用户和管理员账号分表存储

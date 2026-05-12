@@ -7,6 +7,7 @@ import {
   Flag,
   LogOut,
   MapPin,
+  Search,
   ShieldCheck,
   Sparkles,
   Tags,
@@ -34,7 +35,9 @@ type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: numb
 type MarketPost = { id: number; title: string; author: string; category: string; city: string; description: string; auditStatus?: string };
 type Moment = { id: number; petName: string; author: string; category: string; city: string; content: string; auditStatus?: string };
 type Category = { id: number; name: string; description: string; tags: string };
-type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
+type AdminRegionDistrict = { id: number; name: string; areaCode: string };
+type AdminRegionCity = { id: number; name: string; areaCode: string; districtCount: number; districts: AdminRegionDistrict[] };
+type AdminRegionProvince = { id: number; name: string; areaCode: string; cityCount: number; districtCount: number; cities: AdminRegionCity[] };
 type TabKey = 'accounts' | 'users' | 'reports' | 'posts' | 'moments' | 'categories' | 'regions';
 type PageResult<T> = {
   items: T[];
@@ -46,14 +49,13 @@ type PageResult<T> = {
   hasPrevious: boolean;
 };
 
-const TAB_PAGE_SIZES: Record<TabKey, number> = {
+const TAB_PAGE_SIZES: Record<Exclude<TabKey, 'regions'>, number> = {
   accounts: 6,
   users: 8,
   reports: 8,
   posts: 6,
   moments: 6,
-  categories: 8,
-  regions: 8
+  categories: 8
 };
 
 const EMPTY_PAGE = <T,>(size: number): PageResult<T> => ({
@@ -94,14 +96,13 @@ async function adminFetch(path: string, init: RequestInit = {}) {
 function AdminApp() {
   const [session, setSession] = React.useState<AdminSession | null>(() => getStoredSession());
   const [tab, setTab] = React.useState<TabKey>('accounts');
-  const [pages, setPages] = React.useState<Record<TabKey, number>>({
+  const [pages, setPages] = React.useState<Record<Exclude<TabKey, 'regions'>, number>>({
     accounts: 1,
     users: 1,
     reports: 1,
     posts: 1,
     moments: 1,
-    categories: 1,
-    regions: 1
+    categories: 1
   });
   const [notice, setNotice] = React.useState('');
   const [error, setError] = React.useState('');
@@ -113,33 +114,50 @@ function AdminApp() {
   const [posts, setPosts] = React.useState<PageResult<MarketPost>>(EMPTY_PAGE(TAB_PAGE_SIZES.posts));
   const [moments, setMoments] = React.useState<PageResult<Moment>>(EMPTY_PAGE(TAB_PAGE_SIZES.moments));
   const [categories, setCategories] = React.useState<PageResult<Category>>(EMPTY_PAGE(TAB_PAGE_SIZES.categories));
-  const [regions, setRegions] = React.useState<PageResult<RegionArea>>(EMPTY_PAGE(TAB_PAGE_SIZES.regions));
+  const [regionTree, setRegionTree] = React.useState<AdminRegionProvince[]>([]);
 
   const [adminForm, setAdminForm] = React.useState({ username: '', password: '', displayName: '' });
   const [categoryForm, setCategoryForm] = React.useState({ name: '', description: '', tags: '' });
-  const [regionForm, setRegionForm] = React.useState({ name: '', level: 'province' as RegionArea['level'], parentId: '' });
-
-  const page = pages[tab];
-  const size = TAB_PAGE_SIZES[tab];
+  const [regionKeyword, setRegionKeyword] = React.useState('');
+  const [selectedProvinceCode, setSelectedProvinceCode] = React.useState('');
 
   const tabs: Array<{ key: TabKey; label: string; helper: string; icon: React.ReactNode }> = [
     { key: 'accounts', label: '管理员账号', helper: '独立维护后台账号与状态', icon: <UserPlus size={16} /> },
     { key: 'users', label: '用户管理', helper: '分页处理普通用户治理动作', icon: <Users size={16} /> },
     { key: 'reports', label: '举报处理', helper: '按批次处理待审核内容', icon: <Flag size={16} /> },
-    { key: 'posts', label: '帖子审核', helper: '避免长列表堆满一个页面', icon: <FileText size={16} /> },
-    { key: 'moments', label: '日常审核', helper: '单页聚焦当前待看的内容', icon: <Sparkles size={16} /> },
-    { key: 'categories', label: '分类管理', helper: '结构化维护分类基础库', icon: <Tags size={16} /> },
-    { key: 'regions', label: '地区库', helper: '分页维护行政区层级', icon: <MapPin size={16} /> }
+    { key: 'posts', label: '帖子审核', helper: '集中审核交易与领养内容', icon: <FileText size={16} /> },
+    { key: 'moments', label: '日常审核', helper: '查看和处理社区动态内容', icon: <Sparkles size={16} /> },
+    { key: 'categories', label: '分类管理', helper: '维护主站分类与标签描述', icon: <Tags size={16} /> },
+    { key: 'regions', label: '地区库', helper: '按省市区浏览全国标准地区库，仅支持筛选查看', icon: <MapPin size={16} /> }
   ];
 
   const currentTab = tabs.find((item) => item.key === tab)!;
+  const activePage = tab === 'regions' ? 1 : pages[tab];
+  const activeSize = tab === 'regions' ? 0 : TAB_PAGE_SIZES[tab];
 
-  const loadTab = React.useCallback(async (nextTab: TabKey, nextPage: number) => {
+  const filteredRegionTree = React.useMemo(() => filterRegionTree(regionTree, regionKeyword), [regionTree, regionKeyword]);
+  const regionSummary = React.useMemo(() => summarizeRegionTree(filteredRegionTree), [filteredRegionTree]);
+  const selectedProvince = React.useMemo(
+    () => filteredRegionTree.find((item) => item.areaCode === selectedProvinceCode) || filteredRegionTree[0] || null,
+    [filteredRegionTree, selectedProvinceCode]
+  );
+
+  const loadTab = React.useCallback(async (nextTab: TabKey, nextPage?: number) => {
     if (!getStoredSession()) return;
     setLoading(true);
     setError('');
     try {
-      const query = `?page=${nextPage}&size=${TAB_PAGE_SIZES[nextTab]}`;
+      if (nextTab === 'regions') {
+        const res = await adminFetch('/regions/tree');
+        if (!res.ok) throw new Error(await readError(res));
+        setRegionTree(await readApiData<AdminRegionProvince[]>(res));
+        return;
+      }
+
+      const page = nextPage || pages[nextTab];
+      const size = TAB_PAGE_SIZES[nextTab];
+      const query = `?page=${page}&size=${size}`;
+
       if (nextTab === 'accounts') {
         const res = await adminFetch(`/accounts${query}`);
         if (!res.ok) throw new Error(await readError(res));
@@ -164,17 +182,13 @@ function AdminApp() {
         const res = await adminFetch(`/categories${query}`);
         if (!res.ok) throw new Error(await readError(res));
         setCategories(await readApiData<PageResult<Category>>(res));
-      } else if (nextTab === 'regions') {
-        const res = await adminFetch(`/regions${query}`);
-        if (!res.ok) throw new Error(await readError(res));
-        setRegions(await readApiData<PageResult<RegionArea>>(res));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '管理数据加载失败，请重新登录。');
+      setError(err instanceof Error ? err.message : '管理数据加载失败，请重新登录后再试。');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pages]);
 
   React.useEffect(() => {
     if (!session) return;
@@ -193,8 +207,19 @@ function AdminApp() {
 
   React.useEffect(() => {
     if (!session) return;
-    void loadTab(tab, page);
-  }, [session, tab, page, loadTab]);
+    const nextPage = tab === 'regions' ? undefined : pages[tab];
+    void loadTab(tab, nextPage);
+  }, [session, tab, pages, loadTab]);
+
+  React.useEffect(() => {
+    if (!filteredRegionTree.length) {
+      setSelectedProvinceCode('');
+      return;
+    }
+    if (!filteredRegionTree.some((item) => item.areaCode === selectedProvinceCode)) {
+      setSelectedProvinceCode(filteredRegionTree[0].areaCode);
+    }
+  }, [filteredRegionTree, selectedProvinceCode]);
 
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -216,7 +241,6 @@ function AdminApp() {
     setSession(next);
     saveSession(next);
     setTab('accounts');
-    setPages((prev) => ({ ...prev, accounts: 1 }));
     setNotice('管理员登录成功。');
   }
 
@@ -245,13 +269,15 @@ function AdminApp() {
 
   async function toggleUser(user: UserProfile) {
     setError('');
-    const path = user.blacklisted ? `/users/${user.id}/unblacklist` : `/users/${user.id}/blacklist?reason=${encodeURIComponent('后台手动限制')}`;
+    const path = user.blacklisted
+      ? `/users/${user.id}/unblacklist`
+      : `/users/${user.id}/blacklist?reason=${encodeURIComponent('后台人工限制')}`;
     const res = await adminFetch(path, { method: 'PUT' });
     if (!res.ok) {
       setError(await readError(res));
       return;
     }
-    setNotice(user.blacklisted ? '已解除用户限制。' : '已限制该用户。');
+    setNotice(user.blacklisted ? '已解除该用户限制。' : '已限制该用户账号。');
     await loadTab('users', pages.users);
   }
 
@@ -303,38 +329,6 @@ function AdminApp() {
     }
     setNotice('分类已删除。');
     await loadTab('categories', pages.categories);
-  }
-
-  async function createRegion(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError('');
-    const res = await adminFetch('/regions', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: regionForm.name,
-        level: regionForm.level,
-        parentId: regionForm.parentId ? Number(regionForm.parentId) : undefined
-      })
-    });
-    if (!res.ok) {
-      setError(await readError(res));
-      return;
-    }
-    setNotice('地区已创建。');
-    setRegionForm({ name: '', level: 'province', parentId: '' });
-    setPages((prev) => ({ ...prev, regions: 1 }));
-    await loadTab('regions', 1);
-  }
-
-  async function removeRegion(id: number) {
-    setError('');
-    const res = await adminFetch(`/regions/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      setError(await readError(res));
-      return;
-    }
-    setNotice('地区已删除。');
-    await loadTab('regions', pages.regions);
   }
 
   if (!session) {
@@ -393,8 +387,20 @@ function AdminApp() {
               <p>{currentTab.helper}</p>
             </div>
             <div className="workspaceMeta">
-              <span>第 {page} 页</span>
-              <span>每页 {size} 条</span>
+              {tab === 'regions'
+                ? (
+                  <>
+                    <span>{regionSummary.provinces} 省级</span>
+                    <span>{regionSummary.cities} 市级</span>
+                    <span>{regionSummary.districts} 区县</span>
+                  </>
+                )
+                : (
+                  <>
+                    <span>第 {activePage} 页</span>
+                    <span>每页 {activeSize} 条</span>
+                  </>
+                )}
             </div>
           </div>
 
@@ -449,7 +455,7 @@ function AdminApp() {
               <div className="adminCardGrid">
                 {reports.items.map((item) => (
                   <article className="adminCard" key={item.id}>
-                    <strong>{item.targetType === 'post' ? '交易帖' : '日常'} #{item.targetId}</strong>
+                    <strong>{item.targetType === 'post' ? '交易帖' : '日常动态'} #{item.targetId}</strong>
                     <p>{item.reason}</p>
                     <div className="adminCardActions">
                       <span>{item.status}</span>
@@ -510,8 +516,8 @@ function AdminApp() {
             <DataPanel title="分类配置" total={categories.total} page={categories} onPageChange={(next) => setPages((prev) => ({ ...prev, categories: next }))}>
               <form data-testid="admin-category-create" className="adminInlineForm adminInlineFormWide" onSubmit={createCategory}>
                 <input value={categoryForm.name} onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })} placeholder="分类名称" />
-                <input value={categoryForm.tags} onChange={(event) => setCategoryForm({ ...categoryForm, tags: event.target.value })} placeholder="标签，逗号分隔" />
-                <input value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} placeholder="分类说明" />
+                <input value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} placeholder="分类描述" />
+                <input value={categoryForm.tags} onChange={(event) => setCategoryForm({ ...categoryForm, tags: event.target.value })} placeholder="标签，多个用逗号分隔" />
                 <button type="submit">新增分类</button>
               </form>
               <div className="adminCardGrid adminCardGridTight">
@@ -530,30 +536,14 @@ function AdminApp() {
           )}
 
           {tab === 'regions' && (
-            <DataPanel title="地区配置" total={regions.total} page={regions} onPageChange={(next) => setPages((prev) => ({ ...prev, regions: next }))}>
-              <form className="adminInlineForm adminInlineFormWide" onSubmit={createRegion}>
-                <input value={regionForm.name} onChange={(event) => setRegionForm({ ...regionForm, name: event.target.value })} placeholder="地区名称" />
-                <select value={regionForm.level} onChange={(event) => setRegionForm({ ...regionForm, level: event.target.value as RegionArea['level'] })}>
-                  <option value="province">省份</option>
-                  <option value="city">城市</option>
-                  <option value="district">区县</option>
-                </select>
-                <input value={regionForm.parentId} onChange={(event) => setRegionForm({ ...regionForm, parentId: event.target.value })} placeholder="父级 ID，省级可留空" />
-                <button type="submit">新增地区</button>
-              </form>
-              <div className="adminCardGrid adminCardGridTight">
-                {regions.items.map((item) => (
-                  <article className="adminCard" key={item.id}>
-                    <strong>{item.name}</strong>
-                    <p>{regionLevelLabel(item.level)}{item.parentId ? ` · 父级 ${item.parentId}` : ''}</p>
-                    <div className="adminCardActions">
-                      <span>排序 {item.sortOrder || 0}</span>
-                      <button type="button" onClick={() => removeRegion(item.id)}>删除</button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </DataPanel>
+            <RegionLibraryPanel
+              regionKeyword={regionKeyword}
+              onRegionKeyword={setRegionKeyword}
+              filteredRegionTree={filteredRegionTree}
+              selectedProvince={selectedProvince}
+              selectedProvinceCode={selectedProvinceCode}
+              onSelectProvince={setSelectedProvinceCode}
+            />
           )}
         </section>
       </section>
@@ -572,6 +562,81 @@ function DataPanel<T>({ title, total, page, onPageChange, children }: { title: s
       </div>
       <div className="adminPanelBody">{children}</div>
       <PaginationBar page={page.page} totalPages={page.totalPages} total={page.total} onPageChange={onPageChange} />
+    </div>
+  );
+}
+
+function RegionLibraryPanel(props: {
+  regionKeyword: string;
+  onRegionKeyword: (value: string) => void;
+  filteredRegionTree: AdminRegionProvince[];
+  selectedProvince: AdminRegionProvince | null;
+  selectedProvinceCode: string;
+  onSelectProvince: (value: string) => void;
+}) {
+  return (
+    <div className="adminPanel">
+      <div className="adminPanelHeader adminPanelHeaderStack">
+        <div>
+          <strong>全国地区库</strong>
+          <span>来源：民政部公开的 2023 年县级以上行政区划代码</span>
+        </div>
+        <label className="regionSearch">
+          <Search size={16} />
+          <input value={props.regionKeyword} onChange={(event) => props.onRegionKeyword(event.target.value)} placeholder="筛选省、市、区县或行政区划代码" />
+        </label>
+      </div>
+
+      <div className="adminPanelBody regionWorkbench">
+        <aside className="regionProvinceRail">
+          {props.filteredRegionTree.length ? props.filteredRegionTree.map((province) => (
+            <button
+              key={province.areaCode}
+              type="button"
+              className={province.areaCode === props.selectedProvinceCode ? 'active' : ''}
+              onClick={() => props.onSelectProvince(province.areaCode)}
+            >
+              <strong>{province.name}</strong>
+              <span>{province.cityCount} 市级 · {province.districtCount} 区县</span>
+            </button>
+          )) : <p className="emptyState">没有匹配到地区结果。</p>}
+        </aside>
+
+        <section className="regionDetailPanel">
+          {props.selectedProvince ? (
+            <>
+              <div className="regionDetailHeader">
+                <div>
+                  <h3>{props.selectedProvince.name}</h3>
+                  <p>行政区划代码 {props.selectedProvince.areaCode}</p>
+                </div>
+                <div className="regionSummaryChips">
+                  <span>{props.selectedProvince.cityCount} 个市级节点</span>
+                  <span>{props.selectedProvince.districtCount} 个区县节点</span>
+                </div>
+              </div>
+              <div className="regionCityGrid">
+                {props.selectedProvince.cities.map((city) => (
+                  <article key={city.areaCode} className="regionCityCard">
+                    <div className="regionCityHeader">
+                      <div>
+                        <strong>{city.name}</strong>
+                        <span>{city.areaCode}</span>
+                      </div>
+                      <em>{city.districtCount} 个区县</em>
+                    </div>
+                    <div className="regionDistrictChipGrid">
+                      {city.districts.map((district) => (
+                        <span key={district.areaCode} className="regionDistrictChip">{district.name}</span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : <p className="emptyState">请选择左侧省级地区查看下级行政区。</p>}
+        </section>
+      </div>
     </div>
   );
 }
@@ -598,10 +663,48 @@ function PaginationBar({ page, totalPages, total, onPageChange }: { page: number
   );
 }
 
-function regionLevelLabel(level: RegionArea['level']) {
-  if (level === 'province') return '省份';
-  if (level === 'city') return '城市';
-  return '区县';
+function filterRegionTree(tree: AdminRegionProvince[], keyword: string) {
+  const query = keyword.trim().toLowerCase();
+  if (!query) return tree;
+
+  return tree
+    .map((province) => {
+      const provinceMatch = matchesRegionQuery(province.name, province.areaCode, query);
+      if (provinceMatch) return province;
+
+      const cities = province.cities
+        .map((city) => {
+          const cityMatch = matchesRegionQuery(city.name, city.areaCode, query);
+          if (cityMatch) return city;
+
+          const districts = city.districts.filter((district) => matchesRegionQuery(district.name, district.areaCode, query));
+          if (!districts.length) return null;
+          return { ...city, districtCount: districts.length, districts };
+        })
+        .filter(Boolean) as AdminRegionCity[];
+
+      if (!cities.length) return null;
+      return {
+        ...province,
+        cityCount: cities.length,
+        districtCount: cities.reduce((sum, city) => sum + city.districtCount, 0),
+        cities
+      };
+    })
+    .filter(Boolean) as AdminRegionProvince[];
+}
+
+function matchesRegionQuery(name: string, areaCode: string, query: string) {
+  return name.toLowerCase().includes(query) || areaCode.includes(query);
+}
+
+function summarizeRegionTree(tree: AdminRegionProvince[]) {
+  return tree.reduce((summary, province) => {
+    summary.provinces += 1;
+    summary.cities += province.cities.length;
+    summary.districts += province.cities.reduce((sum, city) => sum + city.districts.length, 0);
+    return summary;
+  }, { provinces: 0, cities: 0, districts: 0 });
 }
 
 function formatTime(value?: string) {

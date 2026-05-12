@@ -14,15 +14,21 @@ import javax.persistence.Id;
 public class RegionArea {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    /** 地区ID。 */
+    /** 地区 ID。 */
     private Long id;
 
     /** 地区名称。 */
     private String name;
+
+    /** 行政区划代码。 */
+    private String areaCode;
+
     /** 地区层级：province、city、district。 */
     private String level;
-    /** 上级地区ID。 */
+
+    /** 上级地区 ID。 */
     private Long parentId;
-    /** 排序值。 */
+
+    /** 展示排序值。 */
     private Integer sortOrder;
 }

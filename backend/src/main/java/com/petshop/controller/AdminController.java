@@ -10,7 +10,7 @@ import com.petshop.dto.category.PetCategoryResponse;
 import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.moment.MomentResponse;
 import com.petshop.dto.post.MarketPostResponse;
-import com.petshop.dto.reference.RegionAreaRequest;
+import com.petshop.dto.reference.AdminRegionProvinceResponse;
 import com.petshop.dto.reference.RegionAreaResponse;
 import com.petshop.dto.report.ContentReportHandleRequest;
 import com.petshop.dto.report.ContentReportResponse;
@@ -217,25 +217,9 @@ public class AdminController {
         return ApiResponse.success(referenceDataService.regionAdminList(currentAdmin.getUsername(), page, size));
     }
 
-    @PostMapping("/regions")
-    public ApiResponse<RegionAreaResponse> createRegion(@CurrentAdmin AdminUser adminUser,
-                                                        @RequestBody RegionAreaRequest request) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "创建地区");
-        return ApiResponse.success("地区已创建", referenceDataService.createRegion(currentAdmin.getUsername(), request));
-    }
-
-    @PutMapping("/regions/{id}")
-    public ApiResponse<RegionAreaResponse> updateRegion(@PathVariable Long id,
-                                                        @CurrentAdmin AdminUser adminUser,
-                                                        @RequestBody RegionAreaRequest request) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "更新地区");
-        return ApiResponse.success("地区已更新", referenceDataService.updateRegion(id, currentAdmin.getUsername(), request));
-    }
-
-    @DeleteMapping("/regions/{id}")
-    public ApiResponse<Void> deleteRegion(@PathVariable Long id, @CurrentAdmin AdminUser adminUser) {
-        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "删除地区");
-        referenceDataService.deleteRegion(id, currentAdmin.getUsername());
-        return ApiResponse.success("地区已删除", null);
+    @GetMapping("/regions/tree")
+    public ApiResponse<List<AdminRegionProvinceResponse>> regionTree(@CurrentAdmin AdminUser adminUser) {
+        AdminUser currentAdmin = AdminGuard.requireAuthenticated(adminUser, "查看地区库层级");
+        return ApiResponse.success(referenceDataService.regionAdminTree(currentAdmin.getUsername()));
     }
 }

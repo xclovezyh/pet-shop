@@ -1,23 +1,25 @@
 package com.petshop.service;
 
-import com.petshop.api.ApiErrorCode;
-import com.petshop.api.ApiException;
 import com.petshop.dto.common.PageResponse;
+import com.petshop.dto.reference.AdminRegionCityResponse;
+import com.petshop.dto.reference.AdminRegionDistrictResponse;
+import com.petshop.dto.reference.AdminRegionProvinceResponse;
 import com.petshop.dto.reference.ReferenceDataResponse;
-import com.petshop.dto.reference.RegionAreaRequest;
 import com.petshop.dto.reference.RegionAreaResponse;
 import com.petshop.dto.reference.RegionCityResponse;
 import com.petshop.dto.reference.RegionTreeResponse;
 import com.petshop.model.ReferenceOption;
 import com.petshop.model.RegionArea;
-import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.ReferenceOptionRepository;
 import com.petshop.repository.RegionAreaRepository;
 import com.petshop.support.PageSupport;
-import com.petshop.support.UserGuard;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,12 +30,10 @@ public class ReferenceDataService {
 
     private final ReferenceOptionRepository options;
     private final RegionAreaRepository regions;
-    private final AppUserRepository users;
 
-    public ReferenceDataService(ReferenceOptionRepository options, RegionAreaRepository regions, AppUserRepository users) {
+    public ReferenceDataService(ReferenceOptionRepository options, RegionAreaRepository regions) {
         this.options = options;
         this.regions = regions;
-        this.users = users;
     }
 
     public ReferenceDataResponse all() {
@@ -50,73 +50,82 @@ public class ReferenceDataService {
     }
 
     public PageResponse<RegionAreaResponse> regionAdminList(String admin, Integer page, Integer size) {
-        return PageSupport.slice(regions.findAll().stream()
-                .sorted((left, right) -> {
-                    int level = levelOrder(left.getLevel()) - levelOrder(right.getLevel());
-                    if (level != 0) {
-                        return level;
-                    }
-                    int sort = safeSort(left) - safeSort(right);
-                    if (sort != 0) {
-                        return sort;
-                    }
-                    return left.getId().compareTo(right.getId());
-                })
-                .collect(Collectors.toList()), page, size, this::toResponse);
+        return PageSupport.slice(sortedRegions(), page, size, this::toResponse);
     }
 
     public List<RegionAreaResponse> regionAdminList(String admin) {
         return regionAdminList(admin, 1, 50).getItems();
     }
 
-    public RegionAreaResponse createRegion(String admin, RegionAreaRequest request) {
-        validateRegion(request);
-        RegionArea region = new RegionArea();
-        region.setName(request.getName().trim());
-        region.setLevel(request.getLevel());
-        region.setParentId(request.getParentId());
-        region.setSortOrder(request.getSortOrder() == null ? nextRegionSort(request.getLevel(), request.getParentId()) : request.getSortOrder());
-        return toResponse(regions.save(region));
-    }
-
-    public RegionAreaResponse updateRegion(Long id, String admin, RegionAreaRequest request) {
-        RegionArea region = regions.findById(id)
-                .orElseThrow(() -> new ApiException(ApiErrorCode.REGION_NOT_FOUND));
-        validateRegion(request);
-        region.setName(request.getName().trim());
-        region.setLevel(request.getLevel());
-        region.setParentId(request.getParentId());
-        region.setSortOrder(request.getSortOrder() == null ? region.getSortOrder() : request.getSortOrder());
-        return toResponse(regions.save(region));
-    }
-
-    public void deleteRegion(Long id, String admin) {
-        RegionArea region = regions.findById(id)
-                .orElseThrow(() -> new ApiException(ApiErrorCode.REGION_NOT_FOUND));
-        deleteRegionTree(region);
-    }
-
-    private List<RegionTreeResponse> regions() {
-        return regions.findByLevelOrderBySortOrderAscIdAsc(LEVEL_PROVINCE).stream()
-                .map(this::toProvinceResponse)
+    public List<AdminRegionProvinceResponse> regionAdminTree(String admin) {
+        Map<Long, List<RegionArea>> byParent = sortedRegions().stream()
+                .collect(Collectors.groupingBy(RegionArea::getParentId, LinkedHashMap::new, Collectors.toList()));
+        List<RegionArea> provinces = byParent.getOrDefault(null, new ArrayList<>());
+        return provinces.stream()
+                .map(province -> toAdminProvince(province, byParent))
                 .collect(Collectors.toList());
     }
 
-    private RegionTreeResponse toProvinceResponse(RegionArea province) {
+    private List<RegionTreeResponse> regions() {
+        Map<Long, List<RegionArea>> byParent = sortedRegions().stream()
+                .collect(Collectors.groupingBy(RegionArea::getParentId, LinkedHashMap::new, Collectors.toList()));
+        return byParent.getOrDefault(null, new ArrayList<>()).stream()
+                .map(province -> toProvinceResponse(province, byParent))
+                .collect(Collectors.toList());
+    }
+
+    private RegionTreeResponse toProvinceResponse(RegionArea province, Map<Long, List<RegionArea>> byParent) {
         RegionTreeResponse response = new RegionTreeResponse();
         response.setName(province.getName());
-        response.setCities(regions.findByParentIdOrderBySortOrderAscIdAsc(province.getId()).stream()
-                .map(this::toCityResponse)
+        response.setCities(byParent.getOrDefault(province.getId(), new ArrayList<>()).stream()
+                .map(city -> toCityResponse(city, byParent))
                 .collect(Collectors.toList()));
         return response;
     }
 
-    private RegionCityResponse toCityResponse(RegionArea city) {
+    private RegionCityResponse toCityResponse(RegionArea city, Map<Long, List<RegionArea>> byParent) {
         RegionCityResponse response = new RegionCityResponse();
         response.setName(city.getName());
-        response.setDistricts(regions.findByParentIdOrderBySortOrderAscIdAsc(city.getId()).stream()
+        response.setDistricts(byParent.getOrDefault(city.getId(), new ArrayList<>()).stream()
                 .map(RegionArea::getName)
                 .collect(Collectors.toList()));
+        return response;
+    }
+
+    private AdminRegionProvinceResponse toAdminProvince(RegionArea province, Map<Long, List<RegionArea>> byParent) {
+        List<AdminRegionCityResponse> cities = byParent.getOrDefault(province.getId(), new ArrayList<>()).stream()
+                .map(city -> toAdminCity(city, byParent))
+                .collect(Collectors.toList());
+
+        AdminRegionProvinceResponse response = new AdminRegionProvinceResponse();
+        response.setId(province.getId());
+        response.setName(province.getName());
+        response.setAreaCode(province.getAreaCode());
+        response.setCityCount(cities.size());
+        response.setDistrictCount(cities.stream().mapToInt(AdminRegionCityResponse::getDistrictCount).sum());
+        response.setCities(cities);
+        return response;
+    }
+
+    private AdminRegionCityResponse toAdminCity(RegionArea city, Map<Long, List<RegionArea>> byParent) {
+        List<AdminRegionDistrictResponse> districts = byParent.getOrDefault(city.getId(), new ArrayList<>()).stream()
+                .map(this::toAdminDistrict)
+                .collect(Collectors.toList());
+
+        AdminRegionCityResponse response = new AdminRegionCityResponse();
+        response.setId(city.getId());
+        response.setName(city.getName());
+        response.setAreaCode(city.getAreaCode());
+        response.setDistrictCount(districts.size());
+        response.setDistricts(districts);
+        return response;
+    }
+
+    private AdminRegionDistrictResponse toAdminDistrict(RegionArea district) {
+        AdminRegionDistrictResponse response = new AdminRegionDistrictResponse();
+        response.setId(district.getId());
+        response.setName(district.getName());
+        response.setAreaCode(district.getAreaCode());
         return response;
     }
 
@@ -126,50 +135,33 @@ public class ReferenceDataService {
                 .collect(Collectors.toList());
     }
 
-    private void validateRegion(RegionAreaRequest request) {
-        if (request == null) {
-            throw new ApiException(ApiErrorCode.REGION_PAYLOAD_REQUIRED);
-        }
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new ApiException(ApiErrorCode.REGION_NAME_REQUIRED);
-        }
-        if (!LEVEL_PROVINCE.equals(request.getLevel())
-                && !LEVEL_CITY.equals(request.getLevel())
-                && !LEVEL_DISTRICT.equals(request.getLevel())) {
-            throw new ApiException(ApiErrorCode.REGION_LEVEL_INVALID);
-        }
-        if (!LEVEL_PROVINCE.equals(request.getLevel()) && request.getParentId() == null) {
-            throw new ApiException(ApiErrorCode.REGION_PARENT_REQUIRED);
-        }
-    }
-
-    private void deleteRegionTree(RegionArea region) {
-        regions.findByParentIdOrderBySortOrderAscIdAsc(region.getId()).forEach(this::deleteRegionTree);
-        regions.delete(region);
-    }
-
-    private int nextRegionSort(String level, Long parentId) {
-        return (int) regions.findAll().stream()
-                .filter(region -> level.equals(region.getLevel()))
-                .filter(region -> parentId == null ? region.getParentId() == null : parentId.equals(region.getParentId()))
-                .count() + 1;
-    }
-
     private RegionAreaResponse toResponse(RegionArea region) {
         RegionAreaResponse response = new RegionAreaResponse();
         response.setId(region.getId());
         response.setName(region.getName());
+        response.setAreaCode(region.getAreaCode());
         response.setLevel(region.getLevel());
         response.setParentId(region.getParentId());
         response.setSortOrder(region.getSortOrder());
         return response;
     }
 
+    private List<RegionArea> sortedRegions() {
+        return regions.findAll().stream()
+                .sorted(Comparator
+                        .comparing(this::levelOrder)
+                        .thenComparing(this::safeSort)
+                        .thenComparing(region -> safeText(region.getAreaCode()))
+                        .thenComparing(RegionArea::getId))
+                .collect(Collectors.toList());
+    }
+
     private int safeSort(RegionArea region) {
         return region.getSortOrder() == null ? 0 : region.getSortOrder();
     }
 
-    private int levelOrder(String level) {
+    private int levelOrder(RegionArea region) {
+        String level = region.getLevel();
         if (LEVEL_PROVINCE.equals(level)) {
             return 1;
         }
@@ -180,5 +172,9 @@ public class ReferenceDataService {
             return 3;
         }
         return 4;
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value;
     }
 }
