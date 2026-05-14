@@ -18,7 +18,7 @@
 - Create: `backend/src/main/java/com/petshop/dto/user/AdminResetPasswordRequest.java`
 - Modify: `backend/src/test/java/com/petshop/service/UserServiceTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 @Test
@@ -49,12 +49,12 @@ void adminResetPasswordShouldReplacePasswordSaltAndClearSession() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dtest=UserServiceTest#adminResetPasswordShouldReplacePasswordSaltAndClearSession test`
 Expected: FAIL with `method adminResetPassword not found`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```java
 public UserResponse adminResetPassword(Long id, AdminResetPasswordRequest request, String adminNickname) {
@@ -69,12 +69,12 @@ public UserResponse adminResetPassword(Long id, AdminResetPasswordRequest reques
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn -Dtest=UserServiceTest#adminResetPasswordShouldReplacePasswordSaltAndClearSession test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/main/java/com/petshop/service/UserService.java backend/src/main/java/com/petshop/controller/AdminController.java backend/src/main/java/com/petshop/dto/user/AdminResetPasswordRequest.java backend/src/test/java/com/petshop/service/UserServiceTest.java
@@ -93,7 +93,7 @@ git commit -m "feat: add admin password reset"
 - Modify: `backend/src/test/java/com/petshop/service/TradeIntentServiceTest.java`
 - Modify: `backend/src/test/java/com/petshop/service/ContentReportServiceTest.java`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 @Test
@@ -117,12 +117,12 @@ void updateShouldRejectNicknameFallbackWhenUserIdsDiffer() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `mvn -Dtest=MomentServiceTest,PrivateMessageServiceTest,TradeIntentServiceTest,ContentReportServiceTest test`
 Expected: FAIL on nickname fallback cases
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```java
 private boolean ownsMoment(Moment moment, AppUser user) {
@@ -130,12 +130,12 @@ private boolean ownsMoment(Moment moment, AppUser user) {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `mvn -Dtest=MomentServiceTest,PrivateMessageServiceTest,TradeIntentServiceTest,ContentReportServiceTest test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/main/java/com/petshop/service/MomentService.java backend/src/main/java/com/petshop/service/PrivateMessageService.java backend/src/main/java/com/petshop/service/TradeIntentService.java backend/src/main/java/com/petshop/service/ContentReportService.java backend/src/test/java/com/petshop/service/MomentServiceTest.java backend/src/test/java/com/petshop/service/PrivateMessageServiceTest.java backend/src/test/java/com/petshop/service/TradeIntentServiceTest.java backend/src/test/java/com/petshop/service/ContentReportServiceTest.java
@@ -150,7 +150,7 @@ git commit -m "feat: close core identity fallback"
 - Create: `backend/src/main/java/com/petshop/dto/user/AdminDisableUserRequest.java`
 - Modify: `backend/src/test/java/com/petshop/controller/UserControllerTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 @Test
@@ -159,12 +159,12 @@ void adminBlacklistShouldClearSessionAndBlockLogin() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dtest=UserControllerTest test`
 Expected: FAIL before the controller/service wiring exists
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```java
 user.setBlacklisted(true);
@@ -173,12 +173,12 @@ user.setJwtToken("");
 user.setJwtTokenExpiresAt(null);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn -Dtest=UserControllerTest test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/main/java/com/petshop/controller/AdminController.java backend/src/main/java/com/petshop/service/UserService.java backend/src/main/java/com/petshop/dto/user/AdminDisableUserRequest.java backend/src/test/java/com/petshop/controller/UserControllerTest.java
@@ -195,7 +195,7 @@ git commit -m "feat: tighten admin account actions"
 - Modify: `backend/src/main/java/com/petshop/controller/AdminController.java`
 - Modify: `backend/src/test/java/com/petshop/service/AdminActionLogServiceTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 @Test
@@ -204,12 +204,12 @@ void recordShouldPersistAdminAction() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dtest=AdminActionLogServiceTest test`
 Expected: FAIL because service is missing
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```java
 public void record(String adminUsername, String action, String targetType, Long targetId, String detail) {
@@ -224,12 +224,12 @@ public void record(String adminUsername, String action, String targetType, Long 
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn -Dtest=AdminActionLogServiceTest test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/main/java/com/petshop/model/AdminActionLog.java backend/src/main/java/com/petshop/repository/AdminActionLogRepository.java backend/src/main/java/com/petshop/service/AdminActionLogService.java backend/src/main/resources/db/migration/V15__admin_action_log.sql backend/src/main/java/com/petshop/controller/AdminController.java backend/src/test/java/com/petshop/service/AdminActionLogServiceTest.java
@@ -243,7 +243,7 @@ git commit -m "feat: add admin audit log"
 - Modify: `backend/src/main/java/com/petshop/controller/AdminController.java`
 - Modify: `backend/src/test/java/com/petshop/service/ContentReportServiceTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 @Test
@@ -252,12 +252,12 @@ void handleShouldBlacklistByUserIdOnly() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dtest=ContentReportServiceTest test`
 Expected: FAIL before strict userId handling is in place
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```java
 if (author.userId == null) {
@@ -266,12 +266,12 @@ if (author.userId == null) {
 AppUser user = users.findById(author.userId).orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在"));
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn -Dtest=ContentReportServiceTest test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/main/java/com/petshop/service/ContentReportService.java backend/src/main/java/com/petshop/controller/AdminController.java backend/src/test/java/com/petshop/service/ContentReportServiceTest.java
