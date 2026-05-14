@@ -16,12 +16,17 @@ import com.petshop.repository.AppUserRepository;
 import com.petshop.support.ContentSafety;
 import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
+import org.springframework.core.env.Environment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,19 +45,32 @@ public class UserService {
 
     private final AppUserRepository users;
     private final UserJwtService userJwtService;
+    private final Environment environment;
     private final Map<String, VerificationCode> verificationCodes = new ConcurrentHashMap<>();
 
     public UserService(AppUserRepository users,
-                       UserJwtService userJwtService) {
+                       UserJwtService userJwtService,
+                       Environment environment) {
         this.users = users;
         this.userJwtService = userJwtService;
+        this.environment = environment;
     }
 
     public PageResponse<UserResponse> list(String adminNickname, Integer page, Integer size) {
-        return PageSupport.slice(users.findAll().stream()
-                .filter(user -> !UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole()))
-                .sorted((left, right) -> right.getId().compareTo(left.getId()))
-                .collect(Collectors.toList()), page, size, this::toResponse);
+        int safePage = PageSupport.normalizePage(page);
+        int safeSize = PageSupport.normalizeSize(size);
+        Page<AppUser> pageResult = users.findByRoleNot(
+                UserGuard.ROLE_SUPER_ADMIN,
+                PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        PageResponse<UserResponse> response = new PageResponse<>();
+        response.setItems(pageResult.getContent().stream().map(this::toResponse).collect(Collectors.toList()));
+        response.setTotal(pageResult.getTotalElements());
+        response.setPage(safePage);
+        response.setSize(safeSize);
+        response.setTotalPages(pageResult.getTotalPages());
+        response.setHasNext(pageResult.hasNext());
+        response.setHasPrevious(pageResult.hasPrevious());
+        return response;
     }
 
     public List<UserResponse> list(String adminNickname) {
@@ -66,7 +84,7 @@ public class UserService {
 
         VerifyCodeResponse response = new VerifyCodeResponse();
         response.setPhone(phone);
-        response.setCode(code);
+        response.setCode(isDevProfile() ? code : null);
         response.setExpireSeconds(600);
         response.setMessage("开发环境会直接返回验证码，接入短信服务后这里不会再返回 code 字段。");
         return response;
@@ -173,6 +191,18 @@ public class UserService {
         return toResponse(users.save(user));
     }
 
+    public UserResponse adminResetPassword(Long id, ResetPasswordRequest request, String adminNickname) {
+        AppUser user = users.findById(id)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        String passwordDigest = requirePasswordDigest(request == null ? null : request.getPassword());
+        String salt = generatePasswordSalt();
+        user.setPasswordSalt(salt);
+        user.setPasswordHash(hashPassword(passwordDigest, salt));
+        user.setJwtToken("");
+        user.setJwtTokenExpiresAt(null);
+        return toResponse(users.save(user));
+    }
+
     public UserResponse blacklist(Long id, String adminNickname, String reason) {
         AppUser user = users.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
@@ -180,6 +210,8 @@ public class UserService {
             throw new ApiException(ApiErrorCode.FORBIDDEN, "不能拉黑超级管理员");
         }
         user.setBlacklisted(true);
+        user.setJwtToken("");
+        user.setJwtTokenExpiresAt(null);
         user.setBlacklistReason(isBlank(reason) ? "账号存在违规行为" : safe(reason));
         return toResponse(users.save(user));
     }
@@ -314,6 +346,12 @@ public class UserService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private boolean isDevProfile() {
+        String[] profiles = environment == null ? new String[0] : environment.getActiveProfiles();
+        return Arrays.stream(profiles == null ? new String[0] : profiles)
+                .anyMatch(profile -> "dev".equalsIgnoreCase(profile));
     }
 
     private static class VerificationCode {

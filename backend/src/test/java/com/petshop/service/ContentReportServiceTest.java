@@ -46,7 +46,7 @@ class ContentReportServiceTest {
         request.setReporter("alice");
         request.setTargetType("pet");
         request.setTargetId(1L);
-        request.setReason("不合规");
+        request.setReason("invalid");
 
         AppUser reporter = new AppUser();
         reporter.setNickname("alice");
@@ -73,14 +73,33 @@ class ContentReportServiceTest {
     }
 
     @Test
+    void myReportsShouldIgnoreLegacyNicknameOnlyReportsWhenUserIdsAreMissing() {
+        AppUser currentUser = new AppUser();
+        currentUser.setId(2L);
+        currentUser.setNickname("alice");
+        currentUser.setRole("USER");
+        currentUser.setBlacklisted(false);
+
+        ContentReport report = new ContentReport();
+        report.setId(9L);
+        report.setReporter("alice");
+        report.setStatus("pending");
+        report.setCreatedAt(LocalDateTime.now());
+
+        when(reports.findByReporterUserIdOrderByCreatedAtDesc(2L)).thenReturn(java.util.Collections.emptyList());
+
+        assertThat(contentReportService.myReports(currentUser)).isEmpty();
+    }
+
+    @Test
     void handleShouldRemoveTargetAndBlacklistAuthor() {
         ContentReport report = new ContentReport();
         report.setId(8L);
         report.setTargetType("post");
         report.setTargetId(10L);
         report.setReporter("alice");
-        report.setReason("违规");
-        report.setStatus("待处理");
+        report.setReason("violation");
+        report.setStatus("pending");
         report.setCreatedAt(LocalDateTime.now());
         when(reports.findById(8L)).thenReturn(Optional.of(report));
         when(reports.save(any(ContentReport.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -88,26 +107,56 @@ class ContentReportServiceTest {
         MarketPost post = new MarketPost();
         post.setId(10L);
         post.setAuthor("bob");
+        post.setAuthorUserId(5L);
         when(posts.findById(10L)).thenReturn(Optional.of(post));
         when(posts.save(any(MarketPost.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         AppUser author = new AppUser();
+        author.setId(5L);
         author.setNickname("bob");
         author.setRole("USER");
         author.setBlacklisted(false);
-        when(users.findByNickname("bob")).thenReturn(Optional.of(author));
+        when(users.findById(5L)).thenReturn(Optional.of(author));
         when(users.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ContentReportHandleRequest request = new ContentReportHandleRequest();
         request.setAction("removeAndBlockAuthor");
-        request.setNote("重复违规");
+        request.setNote("block reason");
 
         ContentReportResponse response = contentReportService.handle(8L, "admin", request);
 
         assertThat(response.getHandledBy()).isEqualTo("admin");
         assertThat(response.getStatus()).isNotBlank();
         assertThat(author.getBlacklisted()).isTrue();
-        assertThat(author.getBlacklistReason()).isEqualTo("重复违规");
+        assertThat(author.getBlacklistReason()).isEqualTo("block reason");
         assertThat(post.getAuditStatus()).isNotBlank();
+    }
+
+    @Test
+    void handleShouldRejectLegacyNicknameOnlyTargetAuthorWhenUserIdMissing() {
+        ContentReport report = new ContentReport();
+        report.setId(12L);
+        report.setTargetType("post");
+        report.setTargetId(20L);
+        report.setReporter("alice");
+        report.setReason("violation");
+        report.setStatus("pending");
+        report.setCreatedAt(LocalDateTime.now());
+        when(reports.findById(12L)).thenReturn(Optional.of(report));
+
+        MarketPost post = new MarketPost();
+        post.setId(20L);
+        post.setAuthor("bob");
+        post.setAuthorUserId(null);
+        when(posts.findById(20L)).thenReturn(Optional.of(post));
+
+        ContentReportHandleRequest request = new ContentReportHandleRequest();
+        request.setAction("removeAndBlockAuthor");
+        request.setNote("block reason");
+
+        assertThatThrownBy(() -> contentReportService.handle(12L, "admin", request))
+                .isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode())
+                .isEqualTo(ApiErrorCode.USER_NOT_FOUND);
     }
 }

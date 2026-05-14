@@ -185,16 +185,24 @@ const demoMoments: Moment[] = [
 function useApi<T>(path: string, fallback: T) {
   const [data, setData] = React.useState<T>(fallback);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
   const load = React.useCallback(() => {
     setLoading(true);
+    setError('');
     apiFetch(`${API_BASE}${path}`)
       .then((res) => readApiData<T>(res))
-      .then((next) => setData(next ?? fallback))
-      .catch(() => setData(fallback))
+      .then((next) => {
+        setData(next ?? fallback);
+        setError('');
+      })
+      .catch((err) => {
+        setData(fallback);
+        setError(err instanceof Error ? err.message : '数据加载失败，当前显示兜底数据。');
+      })
       .finally(() => setLoading(false));
   }, [path, fallback]);
   React.useEffect(load, [load]);
-  return { data, loading, reload: load };
+  return { data, loading, error, reload: load };
 }
 
 function App() {
@@ -412,6 +420,7 @@ function App() {
 
   const favoriteIds = new Set(favoritePosts.map((post) => post.id));
   const unreadCount = threads.reduce((count, thread) => count + (thread.unreadCount || 0), 0);
+  const dataError = [categories.error, pets.error, posts.error, moments.error, referenceData.error].find(Boolean);
 
   return (
     <main>
@@ -425,6 +434,8 @@ function App() {
         </nav>
         <LoginBox currentUser={currentUser} unreadCount={unreadCount} onAccount={() => setPage('account')} onMine={() => setPage('mine')} onProfile={() => setPage('profile')} onMessages={() => setPage('messages')} onLogout={logout} />
       </header>
+
+      {dataError && <p className="dataWarning">数据加载失败，当前显示兜底数据。</p>}
 
       {page === 'home' && (
         <HomePage

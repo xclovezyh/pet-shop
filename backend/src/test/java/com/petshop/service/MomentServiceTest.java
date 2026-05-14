@@ -68,6 +68,20 @@ class MomentServiceTest {
         assertThat(momentService.createComment(10L, commenter, request).getId()).isEqualTo(99L);
     }
 
+    @Test
+    void updateShouldRejectLegacyNicknameOnlyMomentWhenUserIdsAreMissing() {
+        Moment existing = moment(11L, "alice", null);
+        AppUser currentUser = user(2L, "alice");
+        MomentRequest request = request("鐚挭鏃ュ父");
+
+        when(moments.findById(11L)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> momentService.update(11L, currentUser, request))
+                .isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode())
+                .isEqualTo(ApiErrorCode.MOMENT_AUTHOR_MISMATCH);
+    }
+
     private Moment moment(Long id, String author, Long authorUserId) {
         Moment moment = new Moment();
         moment.setId(id);

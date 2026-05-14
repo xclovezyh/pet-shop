@@ -63,5 +63,31 @@ class PrivateMessageServiceTest {
                 .extracting(error -> ((ApiException) error).getErrorCode())
                 .isEqualTo(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
     }
-}
 
+    @Test
+    void sendShouldRejectLegacyNicknameOnlyThreadWhenUserIdsAreMissing() {
+        PrivateMessageThread thread = new PrivateMessageThread();
+        thread.setId(6L);
+        thread.setStarter("alice");
+        thread.setRecipient("bob");
+        thread.setCreatedAt(LocalDateTime.now());
+        thread.setUpdatedAt(LocalDateTime.now());
+
+        AppUser currentUser = new AppUser();
+        currentUser.setId(2L);
+        currentUser.setNickname("alice");
+        currentUser.setRole("USER");
+        currentUser.setBlacklisted(false);
+
+        MessageSendRequest request = new MessageSendRequest();
+        request.setSender("ignored");
+        request.setContent("hello");
+
+        when(threads.findById(6L)).thenReturn(Optional.of(thread));
+
+        assertThatThrownBy(() -> messageService.send(6L, currentUser, request))
+                .isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode())
+                .isEqualTo(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
+    }
+}

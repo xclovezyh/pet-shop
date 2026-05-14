@@ -3,18 +3,26 @@ package com.petshop.service;
 import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.api.ApiErrorCode;
 import com.petshop.api.ApiException;
+import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.user.LoginByPasswordRequest;
 import com.petshop.dto.user.RegisterUserRequest;
+import com.petshop.dto.user.ResetPasswordRequest;
+import com.petshop.dto.user.UserResponse;
 import com.petshop.dto.user.VerifyCodeResponse;
 import com.petshop.model.AppUser;
 import com.petshop.repository.AppUserRepository;
+import com.petshop.support.UserGuard;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.env.Environment;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,8 +43,16 @@ class UserServiceTest {
     @Mock
     private UserJwtService userJwtService;
 
+    @Mock
+    private Environment environment;
+
     @InjectMocks
     private UserService userService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        org.mockito.Mockito.lenient().when(environment.getActiveProfiles()).thenReturn(new String[]{"dev"});
+    }
 
     @Test
     void registerShouldCreateNormalUserWhenVerificationCodeMatches() {
@@ -71,6 +87,25 @@ class UserServiceTest {
     }
 
     @Test
+    void listShouldPageUsersAtDatabaseLayer() {
+        AppUser user = new AppUser();
+        user.setId(5L);
+        user.setUsername("paged5");
+        user.setPhone("13800138005");
+        user.setNickname("paged5");
+        user.setRole("USER");
+        user.setBlacklisted(false);
+
+        when(users.findByRoleNot(org.mockito.ArgumentMatchers.eq(UserGuard.ROLE_SUPER_ADMIN), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(Collections.singletonList(user)));
+
+        PageResponse<UserResponse> response = userService.list("admin", 1, 10);
+
+        assertThat(response.getItems()).extracting(UserResponse::getId).containsExactly(5L);
+        verify(users).findByRoleNot(org.mockito.ArgumentMatchers.eq(UserGuard.ROLE_SUPER_ADMIN), any(Pageable.class));
+    }
+
+    @Test
     void registerShouldRejectDuplicateNickname() {
         VerifyCodeResponse code = userService.sendVerifyCode("13800138000");
         RegisterUserRequest request = new RegisterUserRequest();
@@ -89,6 +124,15 @@ class UserServiceTest {
                 .hasMessage("昵称已被使用，请换一个昵称");
 
         verify(users, never()).save(any(AppUser.class));
+    }
+
+    @Test
+    void sendVerifyCodeShouldHideCodeOutsideDevProfile() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        VerifyCodeResponse response = userService.sendVerifyCode("13800138000");
+
+        assertThat(response.getCode()).isNull();
     }
 
     @Test
@@ -173,5 +217,55 @@ class UserServiceTest {
                 .isEqualTo(ApiErrorCode.LOGIN_FAILED);
 
         verify(users, never()).save(any(AppUser.class));
+    }
+
+    @Test
+    void adminResetPasswordShouldReplacePasswordAndClearJwtToken() {
+        AppUser user = new AppUser();
+        user.setId(7L);
+        user.setUsername("user7");
+        user.setPhone("13800138007");
+        user.setNickname("user7");
+        user.setPasswordSalt("old-salt");
+        user.setPasswordHash("old-hash");
+        user.setJwtToken("token-old");
+        user.setJwtTokenExpiresAt(LocalDateTime.now().plusHours(1));
+        user.setRole("USER");
+        user.setBlacklisted(false);
+
+        when(users.findById(7L)).thenReturn(Optional.of(user));
+        when(users.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setPassword(PASSWORD_DIGEST);
+
+        userService.adminResetPassword(7L, request, "admin");
+
+        assertThat(user.getPasswordSalt()).isNotEqualTo("old-salt");
+        assertThat(user.getPasswordHash()).isNotEqualTo("old-hash");
+        assertThat(user.getJwtToken()).isEmpty();
+        assertThat(user.getJwtTokenExpiresAt()).isNull();
+    }
+
+    @Test
+    void blacklistShouldClearJwtToken() {
+        AppUser user = new AppUser();
+        user.setId(8L);
+        user.setUsername("blocked8");
+        user.setPhone("13800138008");
+        user.setNickname("blocked8");
+        user.setJwtToken("token-old");
+        user.setJwtTokenExpiresAt(LocalDateTime.now().plusHours(1));
+        user.setRole("USER");
+        user.setBlacklisted(false);
+
+        when(users.findById(8L)).thenReturn(Optional.of(user));
+        when(users.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.blacklist(8L, "admin", "blocked");
+
+        assertThat(user.getBlacklisted()).isTrue();
+        assertThat(user.getJwtToken()).isEmpty();
+        assertThat(user.getJwtTokenExpiresAt()).isNull();
     }
 }

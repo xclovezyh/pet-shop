@@ -54,11 +54,9 @@ public class ContentReportService {
 
     public List<ContentReportResponse> myReports(AppUser currentUser) {
         AppUser reporter = UserGuard.requireAuthenticated(currentUser, "查看举报记录");
-        List<ContentReport> items = reports.findByReporterUserIdOrderByCreatedAtDesc(reporter.getId());
-        if (items.isEmpty()) {
-            items = reports.findByReporterOrderByCreatedAtDesc(reporter.getNickname());
-        }
-        return items.stream().map(this::toResponse).collect(Collectors.toList());
+        return reports.findByReporterUserIdOrderByCreatedAtDesc(reporter.getId()).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     public PageResponse<ContentReportResponse> adminReports(String admin, Integer page, Integer size) {
@@ -108,17 +106,15 @@ public class ContentReportService {
         } else if (ACTION_RESTORE_TARGET.equals(action)) {
             setTargetAuditStatus(report.getTargetType(), report.getTargetId(), AUDIT_APPROVED);
         } else if (ACTION_BLOCK_AUTHOR.equals(action) || ACTION_REMOVE_AND_BLOCK_AUTHOR.equals(action)) {
-            setTargetAuditStatus(report.getTargetType(), report.getTargetId(), AUDIT_REMOVED);
-            if (!isBlank(author.nickname) || author.userId != null) {
-                AppUser user = author.userId == null
-                        ? users.findByNickname(author.nickname)
-                        .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在"))
-                        : users.findById(author.userId)
-                        .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在"));
-                user.setBlacklisted(true);
-                user.setBlacklistReason(isBlank(note) ? "因举报处理被限制" : note.trim());
-                users.save(user);
+            if (author.userId == null) {
+                throw new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在");
             }
+            AppUser user = users.findById(author.userId)
+                    .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在"));
+            setTargetAuditStatus(report.getTargetType(), report.getTargetId(), AUDIT_REMOVED);
+            user.setBlacklisted(true);
+            user.setBlacklistReason(isBlank(note) ? "因举报处理被限制" : note.trim());
+            users.save(user);
         } else if (!ACTION_NONE.equals(action)) {
             throw new ApiException(ApiErrorCode.REPORT_ACTION_INVALID);
         }

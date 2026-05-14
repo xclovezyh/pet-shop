@@ -17,6 +17,7 @@ import com.petshop.dto.reference.RegionAreaResponse;
 import com.petshop.dto.report.ContentReportHandleRequest;
 import com.petshop.dto.report.ContentReportResponse;
 import com.petshop.dto.user.UserResponse;
+import com.petshop.dto.user.ResetPasswordRequest;
 import com.petshop.model.AdminUser;
 import com.petshop.service.AdminAuthService;
 import com.petshop.service.AdminSessionService;
@@ -146,6 +147,14 @@ public class AdminController {
     public ApiResponse<UserResponse> unblacklist(@PathVariable Long id, @CurrentAdmin AdminUser adminUser) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "解除用户限制");
         return ApiResponse.success("用户账号已解除限制", userService.unblacklist(id, currentAdmin.getUsername()));
+    }
+
+    @PutMapping("/users/{id}/password")
+    public ApiResponse<UserResponse> resetUserPassword(@PathVariable Long id,
+                                                       @CurrentAdmin AdminUser adminUser,
+                                                       @RequestBody ResetPasswordRequest request) {
+        AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "重置用户密码");
+        return ApiResponse.success("用户密码已重置", userService.adminResetPassword(id, request, currentAdmin.getUsername()));
     }
 
     @GetMapping("/reports")

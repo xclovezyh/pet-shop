@@ -14,8 +14,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +41,7 @@ class TradeIntentServiceTest {
         intent.setRequesterUserId(1L);
         intent.setOwner("bob");
         intent.setOwnerUserId(3L);
-        intent.setStatus("待处理");
+        intent.setStatus("pending");
         intent.setCreatedAt(LocalDateTime.now());
         intent.setUpdatedAt(LocalDateTime.now());
 
@@ -51,9 +53,30 @@ class TradeIntentServiceTest {
 
         when(intents.findById(7L)).thenReturn(Optional.of(intent));
 
-        assertThatThrownBy(() -> tradeIntentService.updateStatus(7L, currentUser, "已取消"))
+        assertThatThrownBy(() -> tradeIntentService.updateStatus(7L, currentUser, "cancel"))
                 .isInstanceOf(ApiException.class)
                 .extracting(error -> ((ApiException) error).getErrorCode())
                 .isEqualTo(ApiErrorCode.TRADE_INTENT_FORBIDDEN);
+    }
+
+    @Test
+    void listShouldIgnoreLegacyNicknameOnlyIntentsWhenUserIdsAreMissing() {
+        TradeIntent intent = new TradeIntent();
+        intent.setId(8L);
+        intent.setRequester("alice");
+        intent.setOwner("bob");
+        intent.setStatus("pending");
+        intent.setCreatedAt(LocalDateTime.now());
+        intent.setUpdatedAt(LocalDateTime.now());
+
+        AppUser currentUser = new AppUser();
+        currentUser.setId(2L);
+        currentUser.setNickname("alice");
+        currentUser.setRole("USER");
+        currentUser.setBlacklisted(false);
+
+        when(intents.findByRequesterUserIdOrderByUpdatedAtDesc(2L)).thenReturn(Collections.emptyList());
+
+        assertThat(tradeIntentService.list(currentUser, "requester")).isEmpty();
     }
 }

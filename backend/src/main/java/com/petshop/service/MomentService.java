@@ -206,9 +206,8 @@ public class MomentService {
     }
 
     private boolean ownsMoment(Moment moment, AppUser user) {
-        if (moment.getAuthorUserId() != null && user.getId() != null) {
-            return moment.getAuthorUserId().equals(user.getId());
-        }
-        return safe(moment.getAuthor()).equals(user.getNickname());
+        return moment.getAuthorUserId() != null
+                && user.getId() != null
+                && moment.getAuthorUserId().equals(user.getId());
     }
 }

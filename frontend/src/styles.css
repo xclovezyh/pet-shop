@@ -54,6 +54,17 @@ main {
   z-index: 10;
 }
 
+.dataWarning {
+  max-width: 1180px;
+  margin: 12px auto 0;
+  padding: 8px 12px;
+  border: 1px solid #f2c94c;
+  background: #fff8dc;
+  color: #7a5200;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .brand {
   align-items: center;
   color: #19513d;

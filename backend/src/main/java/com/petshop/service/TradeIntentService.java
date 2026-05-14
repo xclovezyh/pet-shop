@@ -41,11 +41,6 @@ public class TradeIntentService {
         List<TradeIntent> items = "owner".equals(role)
                 ? intents.findByOwnerUserIdOrderByUpdatedAtDesc(user.getId())
                 : intents.findByRequesterUserIdOrderByUpdatedAtDesc(user.getId());
-        if (items.isEmpty()) {
-            items = "owner".equals(role)
-                    ? intents.findByOwnerOrderByUpdatedAtDesc(user.getNickname())
-                    : intents.findByRequesterOrderByUpdatedAtDesc(user.getNickname());
-        }
         return items.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
@@ -56,16 +51,13 @@ public class TradeIntentService {
         }
         MarketPost post = posts.findById(request.getPostId())
                 .orElseThrow(() -> new ApiException(ApiErrorCode.POST_NOT_FOUND));
-        if (isBlank(post.getAuthor())) {
+        if (isBlank(post.getAuthor()) || post.getAuthorUserId() == null) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_POST_AUTHOR_EMPTY);
         }
-        if ((post.getAuthorUserId() != null && post.getAuthorUserId().equals(user.getId()))
-                || post.getAuthor().equals(user.getNickname())) {
+        if (post.getAuthorUserId().equals(user.getId())) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_SELF_FORBIDDEN);
         }
-        boolean duplicate = post.getAuthorUserId() == null
-                ? intents.existsByPostIdAndRequester(post.getId(), user.getNickname())
-                : intents.existsByPostIdAndRequesterUserId(post.getId(), user.getId());
+        boolean duplicate = intents.existsByPostIdAndRequesterUserId(post.getId(), user.getId());
         if (duplicate) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_DUPLICATE);
         }
@@ -157,17 +149,11 @@ public class TradeIntentService {
     }
 
     private boolean isRequester(TradeIntent intent, AppUser user) {
-        if (intent.getRequesterUserId() != null) {
-            return intent.getRequesterUserId().equals(user.getId());
-        }
-        return user.getNickname().equals(intent.getRequester());
+        return intent.getRequesterUserId() != null && intent.getRequesterUserId().equals(user.getId());
     }
 
     private boolean isOwner(TradeIntent intent, AppUser user) {
-        if (intent.getOwnerUserId() != null) {
-            return intent.getOwnerUserId().equals(user.getId());
-        }
-        return user.getNickname().equals(intent.getOwner());
+        return intent.getOwnerUserId() != null && intent.getOwnerUserId().equals(user.getId());
     }
 
     private String safe(String value) {

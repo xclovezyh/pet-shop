@@ -5,8 +5,8 @@ services:
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-pet_shop}
       MYSQL_USER: ${MYSQL_USERNAME:-petshop}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-root-password}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     ports:
       - "3306:3306"
     volumes:
@@ -26,11 +26,12 @@ services:
     environment:
       MYSQL_URL: ${MYSQL_URL:-jdbc:mysql://mysql:3306/pet_shop?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
       MYSQL_USERNAME: ${MYSQL_USERNAME:-petshop}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
       APP_UPLOAD_DIR: ${APP_UPLOAD_DIR:-/app/uploads}
       APP_UPLOAD_URL_PREFIX: ${APP_UPLOAD_URL_PREFIX:-/api/uploads/}
       APP_ADMIN_USERNAMES: ${APP_ADMIN_USERNAMES:-superadmin}
-      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-change-me-admin-password}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?APP_ADMIN_PASSWORD is required}
+      APP_USER_JWT_SECRET: ${APP_USER_JWT_SECRET:?APP_USER_JWT_SECRET is required}
       SPRING_PROFILES_ACTIVE: prod
     ports:
       - "8080:8080"

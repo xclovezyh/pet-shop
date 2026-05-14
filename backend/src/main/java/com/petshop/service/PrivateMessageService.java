@@ -62,19 +62,16 @@ public class PrivateMessageService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.POST_NOT_FOUND));
         String recipient = safe(post.getAuthor());
         Long recipientUserId = post.getAuthorUserId();
-        if (isBlank(recipient)) {
+        if (isBlank(recipient) || recipientUserId == null) {
             throw new ApiException(ApiErrorCode.MESSAGE_POST_AUTHOR_EMPTY);
         }
-        if ((recipientUserId != null && recipientUserId.equals(user.getId())) || recipient.equals(user.getNickname())) {
+        if (recipientUserId.equals(user.getId())) {
             throw new ApiException(ApiErrorCode.MESSAGE_SELF_FORBIDDEN);
         }
         String content = isBlank(request.getContent()) ? "你好，我想了解「" + safe(post.getTitle()) + "」。" : request.getContent().trim();
         validateContent(content);
 
-        PrivateMessageThread thread = recipientUserId == null
-                ? threads.findFirstByPostIdAndStarterAndRecipient(post.getId(), user.getNickname(), recipient)
-                .orElseGet(() -> createThread(post, user, recipient, null))
-                : threads.findFirstByPostIdAndStarterUserIdAndRecipientUserId(post.getId(), user.getId(), recipientUserId)
+        PrivateMessageThread thread = threads.findFirstByPostIdAndStarterUserIdAndRecipientUserId(post.getId(), user.getId(), recipientUserId)
                 .orElseGet(() -> createThread(post, user, recipient, recipientUserId));
         if (messages.findByThreadIdOrderByCreatedAtAscIdAsc(thread.getId()).isEmpty()) {
             saveMessage(thread, user, content, true);
@@ -102,9 +99,7 @@ public class PrivateMessageService {
         ensureParticipant(thread, user);
         List<PrivateMessage> items = messages.findByThreadIdOrderByCreatedAtAscIdAsc(id);
         for (PrivateMessage message : items) {
-            if (message.getSenderUserId() == null
-                    ? !user.getNickname().equals(message.getSender())
-                    : !user.getId().equals(message.getSenderUserId())) {
+            if (message.getSenderUserId() != null && !user.getId().equals(message.getSenderUserId())) {
                 message.setReadByRecipient(true);
             }
         }
@@ -145,15 +140,12 @@ public class PrivateMessageService {
     }
 
     private void ensureParticipant(PrivateMessageThread thread, AppUser user) {
-        if (thread.getStarterUserId() != null || thread.getRecipientUserId() != null) {
-            if (user.getId().equals(thread.getStarterUserId()) || user.getId().equals(thread.getRecipientUserId())) {
-                return;
-            }
-            throw new ApiException(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
+        if (thread.getStarterUserId() != null
+                && thread.getRecipientUserId() != null
+                && (user.getId().equals(thread.getStarterUserId()) || user.getId().equals(thread.getRecipientUserId()))) {
+            return;
         }
-        if (!user.getNickname().equals(thread.getStarter()) && !user.getNickname().equals(thread.getRecipient())) {
-            throw new ApiException(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
-        }
+        throw new ApiException(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
     }
 
     private void validateContent(String content) {
@@ -174,13 +166,9 @@ public class PrivateMessageService {
         response.setPostTitle(thread.getPostTitle());
         response.setStarter(thread.getStarter());
         response.setRecipient(thread.getRecipient());
-        boolean starter = thread.getStarterUserId() == null
-                ? currentUser.getNickname().equals(thread.getStarter())
-                : currentUser.getId().equals(thread.getStarterUserId());
+        boolean starter = currentUser.getId().equals(thread.getStarterUserId());
         response.setPeer(starter ? thread.getRecipient() : thread.getStarter());
-        response.setUnreadCount(thread.getStarterUserId() == null && thread.getRecipientUserId() == null
-                ? messages.countByThreadIdAndSenderNotAndReadByRecipientFalse(thread.getId(), currentUser.getNickname())
-                : messages.countByThreadIdAndSenderUserIdNotAndReadByRecipientFalse(thread.getId(), currentUser.getId()));
+        response.setUnreadCount(messages.countByThreadIdAndSenderUserIdNotAndReadByRecipientFalse(thread.getId(), currentUser.getId()));
         response.setCreatedAt(thread.getCreatedAt());
         response.setUpdatedAt(thread.getUpdatedAt());
         response.setMessages(messages.findByThreadIdOrderByCreatedAtAscIdAsc(thread.getId()).stream()

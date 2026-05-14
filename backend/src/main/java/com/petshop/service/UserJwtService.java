@@ -8,6 +8,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Optional;
+import java.util.Arrays;
 
 @Service
 public class UserJwtService {
@@ -26,6 +28,7 @@ public class UserJwtService {
     private static final String CLAIM_USERNAME = "username";
     private static final String CLAIM_ROLE = "role";
     private static final String TOKEN_TYPE_USER = "USER";
+    private static final String DEFAULT_SECRET = "change-me-user-jwt-secret";
 
     private final AppUserRepository users;
     private final SecretKey secretKey;
@@ -33,8 +36,10 @@ public class UserJwtService {
 
     public UserJwtService(AppUserRepository users,
                           @Value("${app.user-jwt-secret:change-me-user-jwt-secret}") String secret,
-                          @Value("${app.user-jwt-hours:6}") int tokenHours) {
+                          @Value("${app.user-jwt-hours:6}") int tokenHours,
+                          Environment environment) {
         this.users = users;
+        rejectDefaultSecretInProd(secret, environment);
         this.secretKey = buildSecretKey(secret);
         this.tokenHours = Math.max(1, tokenHours);
     }
@@ -100,6 +105,15 @@ public class UserJwtService {
             return new SecretKeySpec(keyBytes, SignatureAlgorithm.HS256.getJcaName());
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 not available", ex);
+        }
+    }
+
+    private void rejectDefaultSecretInProd(String secret, Environment environment) {
+        String[] profiles = environment == null ? new String[0] : environment.getActiveProfiles();
+        boolean prod = Arrays.stream(profiles == null ? new String[0] : profiles)
+                .anyMatch(profile -> "prod".equalsIgnoreCase(profile));
+        if (prod && (isBlank(secret) || DEFAULT_SECRET.equals(secret.trim()))) {
+            throw new IllegalStateException("APP_USER_JWT_SECRET must be set to a strong non-default value in prod");
         }
     }
 
