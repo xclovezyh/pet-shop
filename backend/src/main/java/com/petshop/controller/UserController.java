@@ -40,8 +40,7 @@ public class UserController {
 
     @GetMapping
     public ApiResponse<List<UserResponse>> list(@CurrentUser AppUser currentUser) {
-        UserGuard.requireSuperAdmin(currentUser);
-        return ApiResponse.success(userService.list(currentUser.getNickname()));
+        throw legacyAdminEndpointDisabled();
     }
 
     @PostMapping("/verification-code")
@@ -101,21 +100,22 @@ public class UserController {
     public ApiResponse<UserResponse> blacklist(@PathVariable Long id,
                                                @CurrentUser AppUser currentUser,
                                                @RequestParam(defaultValue = "账号存在违规行为") String reason) {
-        UserGuard.requireSuperAdmin(currentUser);
-        return ApiResponse.success("账号已限制", userService.blacklist(id, currentUser.getNickname(), reason));
+        throw legacyAdminEndpointDisabled();
     }
 
     @PutMapping("/{id}/unblacklist")
     public ApiResponse<UserResponse> unblacklist(@PathVariable Long id, @CurrentUser AppUser currentUser) {
-        UserGuard.requireSuperAdmin(currentUser);
-        return ApiResponse.success("账号已解除限制", userService.unblacklist(id, currentUser.getNickname()));
+        throw legacyAdminEndpointDisabled();
     }
 
     @PutMapping("/{id}/role")
     public ApiResponse<UserResponse> updateRole(@PathVariable Long id,
                                                 @CurrentUser AppUser currentUser,
                                                 @RequestParam String role) {
-        UserGuard.requireSuperAdmin(currentUser);
-        return ApiResponse.success("角色已更新", userService.updateRole(id, currentUser.getNickname(), role));
+        throw legacyAdminEndpointDisabled();
+    }
+
+    private ApiException legacyAdminEndpointDisabled() {
+        return new ApiException(ApiErrorCode.FORBIDDEN, "管理员操作请使用独立后台入口");
     }
 }

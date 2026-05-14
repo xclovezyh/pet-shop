@@ -7,6 +7,7 @@ import com.petshop.api.GlobalExceptionHandler;
 import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.RegisterUserRequest;
 import com.petshop.dto.user.UserResponse;
+import com.petshop.model.AppUser;
 import com.petshop.service.AdminSessionService;
 import com.petshop.service.UserJwtService;
 import com.petshop.service.UserService;
@@ -18,7 +19,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -32,6 +35,9 @@ class UserControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserController userController;
 
     @MockBean
     private UserService userService;
@@ -93,5 +99,34 @@ class UserControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value("USER_400_001"));
+    }
+
+    @Test
+    void legacyBlacklistEndpointShouldRejectAdminAction() {
+        assertThatThrownBy(() -> userController.blacklist(9L, superAdminUser(), "旧入口限制"))
+                .isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode())
+                .isEqualTo(ApiErrorCode.FORBIDDEN);
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    void legacyRoleEndpointShouldRejectAdminAction() {
+        assertThatThrownBy(() -> userController.updateRole(9L, superAdminUser(), "SUPER_ADMIN"))
+                .isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode())
+                .isEqualTo(ApiErrorCode.FORBIDDEN);
+
+        verifyNoInteractions(userService);
+    }
+
+    private AppUser superAdminUser() {
+        AppUser user = new AppUser();
+        user.setId(1L);
+        user.setNickname("legacy-root");
+        user.setRole("SUPER_ADMIN");
+        user.setBlacklisted(false);
+        return user;
     }
 }

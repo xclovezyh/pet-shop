@@ -17,6 +17,7 @@ import com.petshop.dto.reference.AdminRegionProvinceResponse;
 import com.petshop.dto.reference.RegionAreaResponse;
 import com.petshop.dto.report.ContentReportHandleRequest;
 import com.petshop.dto.report.ContentReportResponse;
+import com.petshop.dto.user.AdminDisableUserRequest;
 import com.petshop.dto.user.UserResponse;
 import com.petshop.dto.user.ResetPasswordRequest;
 import com.petshop.model.AdminUser;
@@ -147,8 +148,9 @@ public class AdminController {
     @PutMapping("/users/{id}/blacklist")
     public ApiResponse<UserResponse> blacklist(@PathVariable Long id,
                                                @CurrentAdmin AdminUser adminUser,
-                                               @RequestParam(defaultValue = "账号存在违规行为") String reason) {
+                                               @RequestBody(required = false) AdminDisableUserRequest request) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "限制用户账号");
+        String reason = request == null ? "" : request.getReason();
         UserResponse response = userService.blacklist(id, currentAdmin.getUsername(), reason);
         recordAdminAction(currentAdmin, "USER_BLACKLIST", "USER", id, reason);
         return ApiResponse.success("用户账号已限制", response);

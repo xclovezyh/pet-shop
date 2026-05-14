@@ -9,6 +9,7 @@ import com.petshop.dto.admin.AdminUserResponse;
 import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.report.ContentReportHandleRequest;
 import com.petshop.dto.report.ContentReportResponse;
+import com.petshop.dto.user.AdminDisableUserRequest;
 import com.petshop.dto.user.ResetPasswordRequest;
 import com.petshop.dto.user.UserResponse;
 import com.petshop.model.AdminUser;
@@ -91,6 +92,24 @@ class AdminControllerTest {
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getData()).isSameAs(userResponse);
         verify(adminActionLogService).record("root", "USER_PASSWORD_RESET", "USER", 7L, "");
+    }
+
+    @Test
+    void blacklistShouldUseRequestReasonAndRecordAction() {
+        AdminUser admin = superAdmin();
+        UserResponse userResponse = new UserResponse();
+        userResponse.setId(8L);
+
+        when(userService.blacklist(8L, "root", "多次发布违规内容")).thenReturn(userResponse);
+
+        AdminDisableUserRequest request = new AdminDisableUserRequest();
+        request.setReason("多次发布违规内容");
+
+        ApiResponse<UserResponse> response = controller.blacklist(8L, admin, request);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData()).isSameAs(userResponse);
+        verify(adminActionLogService).record("root", "USER_BLACKLIST", "USER", 8L, "多次发布违规内容");
     }
 
     private AdminUser superAdmin() {

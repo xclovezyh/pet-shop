@@ -349,8 +349,11 @@ function AdminApp() {
     setError('');
     const path = user.blacklisted
       ? `/users/${user.id}/unblacklist`
-      : `/users/${user.id}/blacklist?reason=${encodeURIComponent('后台人工限制')}`;
-    const res = await adminFetch(path, { method: 'PUT' });
+      : `/users/${user.id}/blacklist`;
+    const res = await adminFetch(path, {
+      method: 'PUT',
+      body: user.blacklisted ? undefined : JSON.stringify({ reason: '后台人工限制' })
+    });
     if (!res.ok) {
       setError(await readError(res));
       return;
