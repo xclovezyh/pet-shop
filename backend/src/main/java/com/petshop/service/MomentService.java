@@ -16,6 +16,9 @@ import com.petshop.repository.MomentRepository;
 import com.petshop.support.ContentSafety;
 import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -47,9 +50,13 @@ public class MomentService {
     }
 
     public PageResponse<MomentResponse> adminList(String adminNickname, Integer page, Integer size) {
-        return PageSupport.slice(moments.findAll().stream()
-                .sorted(Comparator.comparing(Moment::getCreatedAt).reversed())
-                .collect(Collectors.toList()), page, size, this::toResponse);
+        int safePage = PageSupport.normalizePage(page);
+        int safeSize = PageSupport.normalizeSize(size);
+        Page<Moment> pageResult = moments.findAll(PageRequest.of(
+                safePage - 1,
+                safeSize,
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))));
+        return PageSupport.fromPage(pageResult, safePage, safeSize, this::toResponse);
     }
 
     public List<MomentResponse> adminList(String adminNickname) {

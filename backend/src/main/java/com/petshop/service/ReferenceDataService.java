@@ -13,6 +13,8 @@ import com.petshop.model.RegionArea;
 import com.petshop.repository.ReferenceOptionRepository;
 import com.petshop.repository.RegionAreaRepository;
 import com.petshop.support.PageSupport;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -50,7 +52,10 @@ public class ReferenceDataService {
     }
 
     public PageResponse<RegionAreaResponse> regionAdminList(String admin, Integer page, Integer size) {
-        return PageSupport.slice(sortedRegions(), page, size, this::toResponse);
+        int safePage = PageSupport.normalizePage(page);
+        int safeSize = PageSupport.normalizeSize(size);
+        Page<RegionArea> pageResult = regions.findAdminPage(PageRequest.of(safePage - 1, safeSize));
+        return PageSupport.fromPage(pageResult, safePage, safeSize, this::toResponse);
     }
 
     public List<RegionAreaResponse> regionAdminList(String admin) {

@@ -12,6 +12,9 @@ import com.petshop.repository.MarketPostRepository;
 import com.petshop.support.ContentSafety;
 import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -46,9 +49,13 @@ public class MarketPostService {
     }
 
     public PageResponse<MarketPostResponse> adminList(String adminNickname, Integer page, Integer size) {
-        return PageSupport.slice(posts.findAll().stream()
-                .sorted(Comparator.comparing(MarketPost::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .collect(Collectors.toList()), page, size, this::toResponse);
+        int safePage = PageSupport.normalizePage(page);
+        int safeSize = PageSupport.normalizeSize(size);
+        Page<MarketPost> pageResult = posts.findAll(PageRequest.of(
+                safePage - 1,
+                safeSize,
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))));
+        return PageSupport.fromPage(pageResult, safePage, safeSize, this::toResponse);
     }
 
     public List<MarketPostResponse> adminList(String adminNickname) {

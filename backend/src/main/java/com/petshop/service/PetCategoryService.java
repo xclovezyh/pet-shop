@@ -10,6 +10,9 @@ import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.PetCategoryRepository;
 import com.petshop.support.PageSupport;
 import com.petshop.support.UserGuard;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -32,9 +35,13 @@ public class PetCategoryService {
     }
 
     public PageResponse<PetCategoryResponse> adminList(Integer page, Integer size) {
-        return PageSupport.slice(repository.findAll().stream()
-                .sorted((left, right) -> left.getId().compareTo(right.getId()))
-                .collect(Collectors.toList()), page, size, this::toResponse);
+        int safePage = PageSupport.normalizePage(page);
+        int safeSize = PageSupport.normalizeSize(size);
+        Page<PetCategory> pageResult = repository.findAll(PageRequest.of(
+                safePage - 1,
+                safeSize,
+                Sort.by(Sort.Direction.ASC, "id")));
+        return PageSupport.fromPage(pageResult, safePage, safeSize, this::toResponse);
     }
 
     public PetCategoryResponse create(String admin, PetCategoryRequest request) {

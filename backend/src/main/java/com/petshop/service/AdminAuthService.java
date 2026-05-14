@@ -13,6 +13,9 @@ import com.petshop.repository.AdminUserRepository;
 import com.petshop.support.AdminPermission;
 import com.petshop.support.AdminRole;
 import com.petshop.support.PageSupport;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -61,10 +64,14 @@ public class AdminAuthService {
     }
 
     public PageResponse<AdminUserResponse> list(Integer page, Integer size) {
-        return PageSupport.slice(admins.findAll().stream()
-                .peek(this::normalizeAdmin)
-                .sorted((left, right) -> right.getId().compareTo(left.getId()))
-                .collect(Collectors.toList()), page, size, this::toResponse);
+        int safePage = PageSupport.normalizePage(page);
+        int safeSize = PageSupport.normalizeSize(size);
+        Page<AdminUser> pageResult = admins.findAll(PageRequest.of(
+                safePage - 1,
+                safeSize,
+                Sort.by(Sort.Direction.DESC, "id")));
+        pageResult.getContent().forEach(this::normalizeAdmin);
+        return PageSupport.fromPage(pageResult, safePage, safeSize, this::toResponse);
     }
 
     public AdminUserResponse create(AdminCreateRequest request) {

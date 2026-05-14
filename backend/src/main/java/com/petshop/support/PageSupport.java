@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
 
 public final class PageSupport {
     private static final int DEFAULT_PAGE = 1;
@@ -48,6 +49,25 @@ public final class PageSupport {
         response.setTotalPages(totalPages);
         response.setHasNext(safePage < totalPages);
         response.setHasPrevious(safePage > 1 && totalPages > 0);
+        return response;
+    }
+
+    public static <T, R> PageResponse<R> fromPage(Page<T> pageResult,
+                                                  Integer page,
+                                                  Integer size,
+                                                  Function<T, R> mapper) {
+        int safePage = normalizePage(page);
+        int safeSize = normalizeSize(size);
+        PageResponse<R> response = new PageResponse<>();
+        response.setItems(pageResult == null
+                ? Collections.emptyList()
+                : pageResult.getContent().stream().map(mapper).collect(Collectors.toList()));
+        response.setTotal(pageResult == null ? 0 : pageResult.getTotalElements());
+        response.setPage(safePage);
+        response.setSize(safeSize);
+        response.setTotalPages(pageResult == null ? 0 : pageResult.getTotalPages());
+        response.setHasNext(pageResult != null && pageResult.hasNext());
+        response.setHasPrevious(pageResult != null && pageResult.hasPrevious());
         return response;
     }
 }

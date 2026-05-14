@@ -2,6 +2,7 @@ package com.petshop.controller;
 
 import com.petshop.api.ApiResponse;
 import com.petshop.dto.admin.AdminAuthSessionResponse;
+import com.petshop.dto.admin.AdminActionLogResponse;
 import com.petshop.dto.admin.AdminCreateRequest;
 import com.petshop.dto.admin.AdminLoginRequest;
 import com.petshop.dto.admin.AdminPermissionOptionResponse;
@@ -20,6 +21,7 @@ import com.petshop.dto.user.UserResponse;
 import com.petshop.dto.user.ResetPasswordRequest;
 import com.petshop.model.AdminUser;
 import com.petshop.service.AdminAuthService;
+import com.petshop.service.AdminActionLogService;
 import com.petshop.service.AdminSessionService;
 import com.petshop.service.ContentReportService;
 import com.petshop.service.MarketPostService;
@@ -48,6 +50,7 @@ import java.util.List;
 @RequestMapping("/admin")
 public class AdminController {
     private final AdminAuthService adminAuthService;
+    private final AdminActionLogService adminActionLogService;
     private final AdminSessionService adminSessionService;
     private final UserService userService;
     private final ContentReportService contentReportService;
@@ -57,6 +60,7 @@ public class AdminController {
     private final ReferenceDataService referenceDataService;
 
     public AdminController(AdminAuthService adminAuthService,
+                           AdminActionLogService adminActionLogService,
                            AdminSessionService adminSessionService,
                            UserService userService,
                            ContentReportService contentReportService,
@@ -65,6 +69,7 @@ public class AdminController {
                            PetCategoryService petCategoryService,
                            ReferenceDataService referenceDataService) {
         this.adminAuthService = adminAuthService;
+        this.adminActionLogService = adminActionLogService;
         this.adminSessionService = adminSessionService;
         this.userService = userService;
         this.contentReportService = contentReportService;
@@ -116,7 +121,9 @@ public class AdminController {
                                                             @CurrentAdmin AdminUser adminUser,
                                                             @RequestParam boolean enabled) {
         AdminUser currentAdmin = AdminGuard.requireSuperAdmin(adminUser, "维护管理员账号");
-        return ApiResponse.success("管理员状态已更新", adminAuthService.updateStatus(id, enabled, currentAdmin));
+        AdminUserResponse response = adminAuthService.updateStatus(id, enabled, currentAdmin);
+        recordAdminAction(currentAdmin, "ADMIN_STATUS_UPDATE", "ADMIN", id, "enabled=" + enabled);
+        return ApiResponse.success("管理员状态已更新", response);
     }
 
     @PutMapping("/accounts/{id}/permissions")
@@ -124,7 +131,9 @@ public class AdminController {
                                                                  @CurrentAdmin AdminUser adminUser,
                                                                  @RequestBody AdminPermissionUpdateRequest request) {
         AdminUser currentAdmin = AdminGuard.requireSuperAdmin(adminUser, "分配管理员权限");
-        return ApiResponse.success("管理员权限已更新", adminAuthService.updatePermissions(id, request == null ? null : request.getPermissions(), currentAdmin));
+        AdminUserResponse response = adminAuthService.updatePermissions(id, request == null ? null : request.getPermissions(), currentAdmin);
+        recordAdminAction(currentAdmin, "ADMIN_PERMISSION_UPDATE", "ADMIN", id, request == null ? "" : String.valueOf(request.getPermissions()));
+        return ApiResponse.success("管理员权限已更新", response);
     }
 
     @GetMapping("/users")
@@ -140,13 +149,17 @@ public class AdminController {
                                                @CurrentAdmin AdminUser adminUser,
                                                @RequestParam(defaultValue = "账号存在违规行为") String reason) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "限制用户账号");
-        return ApiResponse.success("用户账号已限制", userService.blacklist(id, currentAdmin.getUsername(), reason));
+        UserResponse response = userService.blacklist(id, currentAdmin.getUsername(), reason);
+        recordAdminAction(currentAdmin, "USER_BLACKLIST", "USER", id, reason);
+        return ApiResponse.success("用户账号已限制", response);
     }
 
     @PutMapping("/users/{id}/unblacklist")
     public ApiResponse<UserResponse> unblacklist(@PathVariable Long id, @CurrentAdmin AdminUser adminUser) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "解除用户限制");
-        return ApiResponse.success("用户账号已解除限制", userService.unblacklist(id, currentAdmin.getUsername()));
+        UserResponse response = userService.unblacklist(id, currentAdmin.getUsername());
+        recordAdminAction(currentAdmin, "USER_UNBLACKLIST", "USER", id, "");
+        return ApiResponse.success("用户账号已解除限制", response);
     }
 
     @PutMapping("/users/{id}/password")
@@ -154,7 +167,9 @@ public class AdminController {
                                                        @CurrentAdmin AdminUser adminUser,
                                                        @RequestBody ResetPasswordRequest request) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.USER_MODERATE, "重置用户密码");
-        return ApiResponse.success("用户密码已重置", userService.adminResetPassword(id, request, currentAdmin.getUsername()));
+        UserResponse response = userService.adminResetPassword(id, request, currentAdmin.getUsername());
+        recordAdminAction(currentAdmin, "USER_PASSWORD_RESET", "USER", id, "");
+        return ApiResponse.success("用户密码已重置", response);
     }
 
     @GetMapping("/reports")
@@ -170,7 +185,9 @@ public class AdminController {
                                                            @CurrentAdmin AdminUser adminUser,
                                                            @RequestBody(required = false) ContentReportHandleRequest request) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REPORT_REVIEW, "处理举报");
-        return ApiResponse.success("举报已处理", contentReportService.handle(id, currentAdmin.getUsername(), request));
+        ContentReportResponse response = contentReportService.handle(id, currentAdmin.getUsername(), request);
+        recordAdminAction(currentAdmin, "REPORT_HANDLE", "REPORT", id, request == null ? "" : String.valueOf(request.getAction()));
+        return ApiResponse.success("举报已处理", response);
     }
 
     @GetMapping("/posts")
@@ -186,7 +203,9 @@ public class AdminController {
                                                      @CurrentAdmin AdminUser adminUser,
                                                      @RequestParam String status) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.POST_AUDIT, "审核帖子");
-        return ApiResponse.success("帖子审核状态已更新", marketPostService.audit(id, currentAdmin.getUsername(), status));
+        MarketPostResponse response = marketPostService.audit(id, currentAdmin.getUsername(), status);
+        recordAdminAction(currentAdmin, "POST_AUDIT", "POST", id, status);
+        return ApiResponse.success("帖子审核状态已更新", response);
     }
 
     @GetMapping("/moments")
@@ -202,7 +221,9 @@ public class AdminController {
                                                    @CurrentAdmin AdminUser adminUser,
                                                    @RequestParam String status) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.MOMENT_AUDIT, "审核动态内容");
-        return ApiResponse.success("动态审核状态已更新", momentService.audit(id, currentAdmin.getUsername(), status));
+        MomentResponse response = momentService.audit(id, currentAdmin.getUsername(), status);
+        recordAdminAction(currentAdmin, "MOMENT_AUDIT", "MOMENT", id, status);
+        return ApiResponse.success("动态审核状态已更新", response);
     }
 
     @GetMapping("/categories")
@@ -217,7 +238,9 @@ public class AdminController {
     public ApiResponse<PetCategoryResponse> createCategory(@CurrentAdmin AdminUser adminUser,
                                                            @RequestBody PetCategoryRequest request) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "创建分类");
-        return ApiResponse.success("分类已创建", petCategoryService.create(currentAdmin.getUsername(), request));
+        PetCategoryResponse response = petCategoryService.create(currentAdmin.getUsername(), request);
+        recordAdminAction(currentAdmin, "CATEGORY_CREATE", "CATEGORY", response.getId(), request == null ? "" : request.getName());
+        return ApiResponse.success("分类已创建", response);
     }
 
     @PutMapping("/categories/{id}")
@@ -225,13 +248,16 @@ public class AdminController {
                                                            @CurrentAdmin AdminUser adminUser,
                                                            @RequestBody PetCategoryRequest request) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "更新分类");
-        return ApiResponse.success("分类已更新", petCategoryService.update(id, currentAdmin.getUsername(), request));
+        PetCategoryResponse response = petCategoryService.update(id, currentAdmin.getUsername(), request);
+        recordAdminAction(currentAdmin, "CATEGORY_UPDATE", "CATEGORY", id, request == null ? "" : request.getName());
+        return ApiResponse.success("分类已更新", response);
     }
 
     @DeleteMapping("/categories/{id}")
     public ApiResponse<Void> deleteCategory(@PathVariable Long id, @CurrentAdmin AdminUser adminUser) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.CATEGORY_MANAGE, "删除分类");
         petCategoryService.delete(id, currentAdmin.getUsername());
+        recordAdminAction(currentAdmin, "CATEGORY_DELETE", "CATEGORY", id, "");
         return ApiResponse.success("分类已删除", null);
     }
 
@@ -243,9 +269,21 @@ public class AdminController {
         return ApiResponse.success(referenceDataService.regionAdminList(currentAdmin.getUsername(), page, size));
     }
 
+    @GetMapping("/action-logs")
+    public ApiResponse<PageResponse<AdminActionLogResponse>> actionLogs(@CurrentAdmin AdminUser adminUser,
+                                                                        @RequestParam(defaultValue = "1") Integer page,
+                                                                        @RequestParam(defaultValue = "10") Integer size) {
+        AdminGuard.requireSuperAdmin(adminUser, "查看审计日志");
+        return ApiResponse.success(adminActionLogService.list(page, size));
+    }
+
     @GetMapping("/regions/tree")
     public ApiResponse<List<AdminRegionProvinceResponse>> regionTree(@CurrentAdmin AdminUser adminUser) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REGION_VIEW, "查看地区库层级");
         return ApiResponse.success(referenceDataService.regionAdminTree(currentAdmin.getUsername()));
+    }
+
+    private void recordAdminAction(AdminUser adminUser, String action, String targetType, Long targetId, String detail) {
+        adminActionLogService.record(adminUser.getUsername(), action, targetType, targetId, detail);
     }
 }
