@@ -223,6 +223,7 @@ pnpm test:e2e
 - 访问入口与账号说明：[ACCESS_GUIDE.md](/H:/study-code/pet-shop/ACCESS_GUIDE.md)
 - 开发规范：[BACKEND_DEVELOPMENT_SPEC.md](/H:/study-code/pet-shop/BACKEND_DEVELOPMENT_SPEC.md)
 - 阶段计划：[DEVELOPMENT_PLAN.md](/H:/study-code/pet-shop/DEVELOPMENT_PLAN.md)
+- 代码审查和功能审查文档统一放在 `[docs/reviews/](/H:/study-code/pet-shop/docs/reviews)`，已完成修复的文件名请加 `已确认修复`
 
 ## 用户认证安全补充
 
