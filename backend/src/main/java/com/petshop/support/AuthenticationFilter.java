@@ -1,7 +1,7 @@
 package com.petshop.support;
 
 import com.petshop.model.AppUser;
-import com.petshop.service.UserSessionService;
+import com.petshop.service.UserJwtService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -16,10 +16,10 @@ import java.util.Optional;
 public class AuthenticationFilter extends OncePerRequestFilter {
     public static final String CURRENT_USER_ATTRIBUTE = "petshop.currentUser";
 
-    private final UserSessionService userSessionService;
+    private final UserJwtService userJwtService;
 
-    public AuthenticationFilter(UserSessionService userSessionService) {
-        this.userSessionService = userSessionService;
+    public AuthenticationFilter(UserJwtService userJwtService) {
+        this.userJwtService = userJwtService;
     }
 
     @Override
@@ -29,7 +29,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         String token = extractBearerToken(header);
         if (token != null) {
-            Optional<AppUser> user = userSessionService.resolveUser(token);
+            Optional<AppUser> user = userJwtService.resolveUser(token);
             user.ifPresent(appUser -> request.setAttribute(CURRENT_USER_ATTRIBUTE, appUser));
         }
         filterChain.doFilter(request, response);

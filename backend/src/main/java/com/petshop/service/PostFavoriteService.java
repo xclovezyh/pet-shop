@@ -5,6 +5,7 @@ import com.petshop.api.ApiException;
 import com.petshop.dto.favorite.FavoriteCreateRequest;
 import com.petshop.dto.favorite.FavoriteResponse;
 import com.petshop.dto.post.MarketPostResponse;
+import com.petshop.model.AppUser;
 import com.petshop.model.MarketPost;
 import com.petshop.model.PostFavorite;
 import com.petshop.repository.MarketPostRepository;
@@ -25,46 +26,48 @@ public class PostFavoriteService {
         this.posts = posts;
     }
 
-    public List<FavoriteResponse> list(String userNickname) {
-        requireUser(userNickname);
-        return favorites.findByUserNicknameOrderByCreatedAtDesc(userNickname).stream()
+    public List<FavoriteResponse> list(AppUser currentUser) {
+        AppUser user = requireUser(currentUser);
+        return favorites.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
-    public List<Long> postIds(String userNickname) {
-        requireUser(userNickname);
-        return favorites.findByUserNicknameOrderByCreatedAtDesc(userNickname).stream()
+    public List<Long> postIds(AppUser currentUser) {
+        AppUser user = requireUser(currentUser);
+        return favorites.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
                 .map(PostFavorite::getPostId)
                 .collect(Collectors.toList());
     }
 
-    public FavoriteResponse create(FavoriteCreateRequest request) {
+    public FavoriteResponse create(AppUser currentUser, FavoriteCreateRequest request) {
+        AppUser user = requireUser(currentUser);
         if (request == null || request.getPostId() == null) {
             throw new ApiException(ApiErrorCode.FAVORITE_POST_REQUIRED);
         }
-        requireUser(request.getUserNickname());
         MarketPost post = posts.findById(request.getPostId())
                 .orElseThrow(() -> new ApiException(ApiErrorCode.POST_NOT_FOUND));
-        if (favorites.existsByUserNicknameAndPostId(request.getUserNickname(), request.getPostId())) {
-            return toResponse(favorites.findFirstByUserNicknameAndPostId(request.getUserNickname(), request.getPostId()).get());
+        if (favorites.existsByUserIdAndPostId(user.getId(), request.getPostId())) {
+            return toResponse(favorites.findFirstByUserIdAndPostId(user.getId(), request.getPostId()).get());
         }
         PostFavorite favorite = new PostFavorite();
-        favorite.setUserNickname(request.getUserNickname());
+        favorite.setUserId(user.getId());
+        favorite.setUserNicknameSnapshot(user.getNickname());
         favorite.setPostId(post.getId());
         favorite.setCreatedAt(LocalDateTime.now());
         return toResponse(favorites.save(favorite));
     }
 
-    public void delete(Long postId, String userNickname) {
-        requireUser(userNickname);
-        favorites.findFirstByUserNicknameAndPostId(userNickname, postId).ifPresent(favorites::delete);
+    public void delete(AppUser currentUser, Long postId) {
+        AppUser user = requireUser(currentUser);
+        favorites.findFirstByUserIdAndPostId(user.getId(), postId).ifPresent(favorites::delete);
     }
 
     private FavoriteResponse toResponse(PostFavorite favorite) {
         FavoriteResponse response = new FavoriteResponse();
         response.setId(favorite.getId());
-        response.setUserNickname(favorite.getUserNickname());
+        response.setUserId(favorite.getUserId());
+        response.setUserNickname(favorite.getUserNicknameSnapshot());
         response.setPostId(favorite.getPostId());
         response.setCreatedAt(favorite.getCreatedAt());
         posts.findById(favorite.getPostId()).ifPresent(post -> response.setPost(toPostResponse(post)));
@@ -90,9 +93,10 @@ public class PostFavoriteService {
         return response;
     }
 
-    private void requireUser(String userNickname) {
-        if (userNickname == null || userNickname.trim().isEmpty()) {
+    private AppUser requireUser(AppUser currentUser) {
+        if (currentUser == null || currentUser.getId() == null) {
             throw new ApiException(ApiErrorCode.FAVORITE_USER_REQUIRED);
         }
+        return currentUser;
     }
 }

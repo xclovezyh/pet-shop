@@ -58,19 +58,31 @@ public class ReferenceDataService {
     }
 
     public List<AdminRegionProvinceResponse> regionAdminTree(String admin) {
-        Map<Long, List<RegionArea>> byParent = sortedRegions().stream()
-                .collect(Collectors.groupingBy(RegionArea::getParentId, LinkedHashMap::new, Collectors.toList()));
-        List<RegionArea> provinces = byParent.getOrDefault(null, new ArrayList<>());
+        List<RegionArea> sorted = sortedRegions();
+        Map<Long, List<RegionArea>> byParent = childrenByParent(sorted);
+        List<RegionArea> provinces = rootRegions(sorted);
         return provinces.stream()
                 .map(province -> toAdminProvince(province, byParent))
                 .collect(Collectors.toList());
     }
 
     private List<RegionTreeResponse> regions() {
-        Map<Long, List<RegionArea>> byParent = sortedRegions().stream()
-                .collect(Collectors.groupingBy(RegionArea::getParentId, LinkedHashMap::new, Collectors.toList()));
-        return byParent.getOrDefault(null, new ArrayList<>()).stream()
+        List<RegionArea> sorted = sortedRegions();
+        Map<Long, List<RegionArea>> byParent = childrenByParent(sorted);
+        return rootRegions(sorted).stream()
                 .map(province -> toProvinceResponse(province, byParent))
+                .collect(Collectors.toList());
+    }
+
+    private Map<Long, List<RegionArea>> childrenByParent(List<RegionArea> sorted) {
+        return sorted.stream()
+                .filter(region -> region.getParentId() != null)
+                .collect(Collectors.groupingBy(RegionArea::getParentId, LinkedHashMap::new, Collectors.toList()));
+    }
+
+    private List<RegionArea> rootRegions(List<RegionArea> sorted) {
+        return sorted.stream()
+                .filter(region -> region.getParentId() == null)
                 .collect(Collectors.toList());
     }
 

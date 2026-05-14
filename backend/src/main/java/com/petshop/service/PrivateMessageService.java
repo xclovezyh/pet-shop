@@ -6,6 +6,7 @@ import com.petshop.dto.message.MessageItemResponse;
 import com.petshop.dto.message.MessageSendRequest;
 import com.petshop.dto.message.MessageStartRequest;
 import com.petshop.dto.message.MessageThreadResponse;
+import com.petshop.model.AppUser;
 import com.petshop.model.MarketPost;
 import com.petshop.model.PrivateMessage;
 import com.petshop.model.PrivateMessageThread;
@@ -28,73 +29,82 @@ public class PrivateMessageService {
     private final MarketPostRepository posts;
     private final AppUserRepository users;
 
-    public PrivateMessageService(PrivateMessageThreadRepository threads, PrivateMessageRepository messages, MarketPostRepository posts, AppUserRepository users) {
+    public PrivateMessageService(PrivateMessageThreadRepository threads,
+                                 PrivateMessageRepository messages,
+                                 MarketPostRepository posts,
+                                 AppUserRepository users) {
         this.threads = threads;
         this.messages = messages;
         this.posts = posts;
         this.users = users;
     }
 
-    public List<MessageThreadResponse> list(String user) {
-        requireUser(user);
-        return threads.findByStarterOrRecipientOrderByUpdatedAtDesc(user, user).stream()
+    public List<MessageThreadResponse> list(AppUser currentUser) {
+        AppUser user = requireUser(currentUser);
+        return threads.findByStarterUserIdOrRecipientUserIdOrderByUpdatedAtDesc(user.getId(), user.getId()).stream()
                 .map(thread -> toThreadResponse(thread, user))
                 .collect(Collectors.toList());
     }
 
-    public MessageThreadResponse detail(Long id, String user) {
-        requireUser(user);
+    public MessageThreadResponse detail(Long id, AppUser currentUser) {
+        AppUser user = requireUser(currentUser);
         PrivateMessageThread thread = findThread(id);
         ensureParticipant(thread, user);
         return toThreadResponse(thread, user);
     }
 
-    public MessageThreadResponse start(MessageStartRequest request) {
+    public MessageThreadResponse start(AppUser currentUser, MessageStartRequest request) {
+        AppUser user = requireUser(currentUser);
         if (request == null || request.getPostId() == null) {
             throw new ApiException(ApiErrorCode.MESSAGE_POST_REQUIRED);
         }
-        requireUser(request.getSender());
         MarketPost post = posts.findById(request.getPostId())
                 .orElseThrow(() -> new ApiException(ApiErrorCode.POST_NOT_FOUND));
         String recipient = safe(post.getAuthor());
+        Long recipientUserId = post.getAuthorUserId();
         if (isBlank(recipient)) {
             throw new ApiException(ApiErrorCode.MESSAGE_POST_AUTHOR_EMPTY);
         }
-        if (recipient.equals(request.getSender())) {
+        if ((recipientUserId != null && recipientUserId.equals(user.getId())) || recipient.equals(user.getNickname())) {
             throw new ApiException(ApiErrorCode.MESSAGE_SELF_FORBIDDEN);
         }
         String content = isBlank(request.getContent()) ? "你好，我想了解「" + safe(post.getTitle()) + "」。" : request.getContent().trim();
         validateContent(content);
 
-        PrivateMessageThread thread = threads.findFirstByPostIdAndStarterAndRecipient(post.getId(), request.getSender(), recipient)
-                .orElseGet(() -> createThread(post, request.getSender(), recipient));
+        PrivateMessageThread thread = recipientUserId == null
+                ? threads.findFirstByPostIdAndStarterAndRecipient(post.getId(), user.getNickname(), recipient)
+                .orElseGet(() -> createThread(post, user, recipient, null))
+                : threads.findFirstByPostIdAndStarterUserIdAndRecipientUserId(post.getId(), user.getId(), recipientUserId)
+                .orElseGet(() -> createThread(post, user, recipient, recipientUserId));
         if (messages.findByThreadIdOrderByCreatedAtAscIdAsc(thread.getId()).isEmpty()) {
-            saveMessage(thread, request.getSender(), content, true);
+            saveMessage(thread, user, content, true);
         }
-        return toThreadResponse(thread, request.getSender());
+        return toThreadResponse(thread, user);
     }
 
-    public MessageItemResponse send(Long id, MessageSendRequest request) {
+    public MessageItemResponse send(Long id, AppUser currentUser, MessageSendRequest request) {
+        AppUser user = requireUser(currentUser);
         if (request == null) {
             throw new ApiException(ApiErrorCode.MESSAGE_CONTENT_EMPTY);
         }
-        requireUser(request.getSender());
         if (isBlank(request.getContent())) {
             throw new ApiException(ApiErrorCode.MESSAGE_CONTENT_EMPTY);
         }
         validateContent(request.getContent());
         PrivateMessageThread thread = findThread(id);
-        ensureParticipant(thread, request.getSender());
-        return toMessageResponse(saveMessage(thread, request.getSender(), request.getContent().trim(), false));
+        ensureParticipant(thread, user);
+        return toMessageResponse(saveMessage(thread, user, request.getContent().trim(), false));
     }
 
-    public MessageThreadResponse markRead(Long id, String user) {
-        requireUser(user);
+    public MessageThreadResponse markRead(Long id, AppUser currentUser) {
+        AppUser user = requireUser(currentUser);
         PrivateMessageThread thread = findThread(id);
         ensureParticipant(thread, user);
         List<PrivateMessage> items = messages.findByThreadIdOrderByCreatedAtAscIdAsc(id);
         for (PrivateMessage message : items) {
-            if (!user.equals(message.getSender())) {
+            if (message.getSenderUserId() == null
+                    ? !user.getNickname().equals(message.getSender())
+                    : !user.getId().equals(message.getSenderUserId())) {
                 message.setReadByRecipient(true);
             }
         }
@@ -102,22 +112,25 @@ public class PrivateMessageService {
         return toThreadResponse(thread, user);
     }
 
-    private PrivateMessageThread createThread(MarketPost post, String starter, String recipient) {
+    private PrivateMessageThread createThread(MarketPost post, AppUser starter, String recipient, Long recipientUserId) {
         LocalDateTime now = LocalDateTime.now();
         PrivateMessageThread thread = new PrivateMessageThread();
         thread.setPostId(post.getId());
         thread.setPostTitle(post.getTitle());
-        thread.setStarter(starter);
+        thread.setStarter(starter.getNickname());
+        thread.setStarterUserId(starter.getId());
         thread.setRecipient(recipient);
+        thread.setRecipientUserId(recipientUserId);
         thread.setCreatedAt(now);
         thread.setUpdatedAt(now);
         return threads.save(thread);
     }
 
-    private PrivateMessage saveMessage(PrivateMessageThread thread, String sender, String content, boolean readByRecipient) {
+    private PrivateMessage saveMessage(PrivateMessageThread thread, AppUser sender, String content, boolean readByRecipient) {
         PrivateMessage message = new PrivateMessage();
         message.setThreadId(thread.getId());
-        message.setSender(sender);
+        message.setSender(sender.getNickname());
+        message.setSenderUserId(sender.getId());
         message.setContent(content);
         message.setReadByRecipient(readByRecipient);
         message.setCreatedAt(LocalDateTime.now());
@@ -131,8 +144,14 @@ public class PrivateMessageService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.MESSAGE_THREAD_NOT_FOUND));
     }
 
-    private void ensureParticipant(PrivateMessageThread thread, String user) {
-        if (!user.equals(thread.getStarter()) && !user.equals(thread.getRecipient())) {
+    private void ensureParticipant(PrivateMessageThread thread, AppUser user) {
+        if (thread.getStarterUserId() != null || thread.getRecipientUserId() != null) {
+            if (user.getId().equals(thread.getStarterUserId()) || user.getId().equals(thread.getRecipientUserId())) {
+                return;
+            }
+            throw new ApiException(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
+        }
+        if (!user.getNickname().equals(thread.getStarter()) && !user.getNickname().equals(thread.getRecipient())) {
             throw new ApiException(ApiErrorCode.MESSAGE_THREAD_FORBIDDEN);
         }
     }
@@ -141,22 +160,27 @@ public class PrivateMessageService {
         ContentSafety.validate(content);
     }
 
-    private void requireUser(String user) {
-        if (isBlank(user)) {
+    private AppUser requireUser(AppUser user) {
+        if (user == null || user.getId() == null || isBlank(user.getNickname())) {
             throw new ApiException(ApiErrorCode.MESSAGE_USER_REQUIRED);
         }
-        UserGuard.requireActive(users, user, "使用私信");
+        return UserGuard.requireAuthenticated(user, "使用私信");
     }
 
-    private MessageThreadResponse toThreadResponse(PrivateMessageThread thread, String currentUser) {
+    private MessageThreadResponse toThreadResponse(PrivateMessageThread thread, AppUser currentUser) {
         MessageThreadResponse response = new MessageThreadResponse();
         response.setId(thread.getId());
         response.setPostId(thread.getPostId());
         response.setPostTitle(thread.getPostTitle());
         response.setStarter(thread.getStarter());
         response.setRecipient(thread.getRecipient());
-        response.setPeer(currentUser.equals(thread.getStarter()) ? thread.getRecipient() : thread.getStarter());
-        response.setUnreadCount(messages.countByThreadIdAndSenderNotAndReadByRecipientFalse(thread.getId(), currentUser));
+        boolean starter = thread.getStarterUserId() == null
+                ? currentUser.getNickname().equals(thread.getStarter())
+                : currentUser.getId().equals(thread.getStarterUserId());
+        response.setPeer(starter ? thread.getRecipient() : thread.getStarter());
+        response.setUnreadCount(thread.getStarterUserId() == null && thread.getRecipientUserId() == null
+                ? messages.countByThreadIdAndSenderNotAndReadByRecipientFalse(thread.getId(), currentUser.getNickname())
+                : messages.countByThreadIdAndSenderUserIdNotAndReadByRecipientFalse(thread.getId(), currentUser.getId()));
         response.setCreatedAt(thread.getCreatedAt());
         response.setUpdatedAt(thread.getUpdatedAt());
         response.setMessages(messages.findByThreadIdOrderByCreatedAtAscIdAsc(thread.getId()).stream()
@@ -181,6 +205,6 @@ public class PrivateMessageService {
     }
 
     private String safe(String value) {
-        return value == null ? "" : value;
+        return value == null ? "" : value.trim();
     }
 }

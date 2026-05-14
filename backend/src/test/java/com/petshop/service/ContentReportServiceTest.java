@@ -52,12 +52,24 @@ class ContentReportServiceTest {
         reporter.setNickname("alice");
         reporter.setRole("USER");
         reporter.setBlacklisted(false);
-        when(users.findByNickname("alice")).thenReturn(Optional.of(reporter));
 
-        assertThatThrownBy(() -> contentReportService.create(request))
+        assertThatThrownBy(() -> contentReportService.create(reporter, request))
                 .isInstanceOf(ApiException.class)
                 .extracting(error -> ((ApiException) error).getErrorCode())
                 .isEqualTo(ApiErrorCode.REPORT_TARGET_TYPE_UNSUPPORTED);
+    }
+
+    @Test
+    void myReportsShouldUseReporterUserIdBeforeNickname() {
+        AppUser currentUser = new AppUser();
+        currentUser.setId(2L);
+        currentUser.setNickname("alice");
+        currentUser.setRole("USER");
+        currentUser.setBlacklisted(false);
+
+        when(reports.findByReporterUserIdOrderByCreatedAtDesc(2L)).thenReturn(java.util.Collections.emptyList());
+
+        assertThat(contentReportService.myReports(currentUser)).isEmpty();
     }
 
     @Test

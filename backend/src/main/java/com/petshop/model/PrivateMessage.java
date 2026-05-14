@@ -25,6 +25,8 @@ public class PrivateMessage {
     private Long threadId;
     /** 发送人昵称。 */
     private String sender;
+    /** 发送人用户ID，关联 app_user.id。 */
+    private Long senderUserId;
     /** 接收方是否已读。 */
     private Boolean readByRecipient;
     /** 发送时间。 */

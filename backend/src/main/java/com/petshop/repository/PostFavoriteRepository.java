@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PostFavoriteRepository extends JpaRepository<PostFavorite, Long> {
-    List<PostFavorite> findByUserNicknameOrderByCreatedAtDesc(String userNickname);
+    List<PostFavorite> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    Optional<PostFavorite> findFirstByUserNicknameAndPostId(String userNickname, Long postId);
+    Optional<PostFavorite> findFirstByUserIdAndPostId(Long userId, Long postId);
 
-    boolean existsByUserNicknameAndPostId(String userNickname, Long postId);
+    boolean existsByUserIdAndPostId(Long userId, Long postId);
 }

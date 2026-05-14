@@ -48,14 +48,13 @@ public class MarketPostController {
     public ApiResponse<MarketPostResponse> create(@CurrentUser AppUser currentUser,
                                                   @RequestBody MarketPostRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "发布帖子");
-        request.setAuthor(user.getNickname());
-        return ApiResponse.success("帖子发布成功", marketPostService.create(request));
+        return ApiResponse.success("帖子发布成功", marketPostService.create(user, request));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id, @CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "删除帖子");
-        marketPostService.delete(id, user.getNickname());
+        marketPostService.delete(id, user);
         return ApiResponse.success("帖子已删除", null);
     }
 
@@ -64,8 +63,7 @@ public class MarketPostController {
                                                   @CurrentUser AppUser currentUser,
                                                   @RequestBody MarketPostRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "编辑帖子");
-        request.setAuthor(user.getNickname());
-        return ApiResponse.success("帖子已更新", marketPostService.update(id, user.getNickname(), request));
+        return ApiResponse.success("帖子已更新", marketPostService.update(id, user, request));
     }
 
     @PutMapping("/{id}/audit")

@@ -10,4 +10,8 @@ public interface PrivateMessageThreadRepository extends JpaRepository<PrivateMes
     List<PrivateMessageThread> findByStarterOrRecipientOrderByUpdatedAtDesc(String starter, String recipient);
 
     Optional<PrivateMessageThread> findFirstByPostIdAndStarterAndRecipient(Long postId, String starter, String recipient);
+
+    List<PrivateMessageThread> findByStarterUserIdOrRecipientUserIdOrderByUpdatedAtDesc(Long starterUserId, Long recipientUserId);
+
+    Optional<PrivateMessageThread> findFirstByPostIdAndStarterUserIdAndRecipientUserId(Long postId, Long starterUserId, Long recipientUserId);
 }

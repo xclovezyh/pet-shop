@@ -27,6 +27,8 @@ public class ContentReport {
     private Long targetId;
     /** 举报人昵称。 */
     private String reporter;
+    /** 举报人用户ID，关联 app_user.id。 */
+    private Long reporterUserId;
     /** 举报状态。 */
     private String status;
     /** 处理人昵称。 */

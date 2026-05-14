@@ -1,9 +1,10 @@
 FROM node:18-alpine AS build
 WORKDIR /workspace
-COPY package*.json ./
-RUN npm ci
+RUN npm install -g pnpm@7.33.7
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm build
 
 FROM nginx:1.25-alpine
 COPY --from=build /workspace/dist /usr/share/nginx/html

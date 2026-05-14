@@ -8,7 +8,7 @@ const TOKEN_STORAGE_KEY = 'petshop_token';
 function looksBrokenText(value: string) {
   if (!value) return false;
   const trimmed = value.trim();
-  return /^[?]+$/.test(trimmed) || /�/.test(trimmed);
+  return /^[?]+$/.test(trimmed) || /[�锟]/.test(trimmed);
 }
 
 function repairStoredUser<T>(user: T) {

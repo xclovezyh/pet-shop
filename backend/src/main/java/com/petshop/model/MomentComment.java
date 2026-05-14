@@ -23,6 +23,8 @@ public class MomentComment {
     private Long momentId;
     /** 评论人昵称。 */
     private String author;
+    /** 评论人用户ID，关联 app_user.id。 */
+    private Long authorUserId;
     /** 评论时间。 */
     private LocalDateTime createdAt;
 

@@ -7,13 +7,13 @@ import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.LoginByPasswordRequest;
 import com.petshop.dto.user.LoginBySmsRequest;
 import com.petshop.dto.user.RegisterUserRequest;
+import com.petshop.dto.user.ResetPasswordRequest;
 import com.petshop.dto.user.SendVerifyCodeRequest;
 import com.petshop.dto.user.UpdateUserProfileRequest;
 import com.petshop.dto.user.UserResponse;
 import com.petshop.dto.user.VerifyCodeResponse;
 import com.petshop.model.AppUser;
 import com.petshop.service.UserService;
-import com.petshop.service.UserSessionService;
 import com.petshop.support.AuthenticationFilter;
 import com.petshop.support.CurrentUser;
 import com.petshop.support.UserGuard;
@@ -33,11 +33,9 @@ import java.util.List;
 @RequestMapping("/users")
 public class UserController {
     private final UserService userService;
-    private final UserSessionService userSessionService;
 
-    public UserController(UserService userService, UserSessionService userSessionService) {
+    public UserController(UserService userService) {
         this.userService = userService;
-        this.userSessionService = userSessionService;
     }
 
     @GetMapping
@@ -66,10 +64,15 @@ public class UserController {
         return ApiResponse.success("登录成功", userService.loginBySms(request));
     }
 
+    @PostMapping("/password/reset")
+    public ApiResponse<AuthSessionResponse> resetPassword(@RequestBody ResetPasswordRequest request) {
+        return ApiResponse.success("密码已重置并自动登录", userService.resetPassword(request));
+    }
+
     @PostMapping("/logout")
     public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
         String token = AuthenticationFilter.extractBearerToken(authorization);
-        userSessionService.invalidate(token);
+        userService.logout(token);
         return ApiResponse.success("已退出登录", null);
     }
 

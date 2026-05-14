@@ -21,6 +21,8 @@ public class Moment {
 
     /** 发布人昵称。 */
     private String author;
+    /** 发布人用户ID，关联 app_user.id。 */
+    private Long authorUserId;
     /** 宠物名称。 */
     private String petName;
     /** 动态分类。 */

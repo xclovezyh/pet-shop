@@ -28,8 +28,12 @@ public class TradeIntent {
     private String postTitle;
     /** 意向提交人昵称。 */
     private String requester;
+    /** 意向提交人用户ID，关联 app_user.id。 */
+    private Long requesterUserId;
     /** 帖子发布人昵称。 */
     private String owner;
+    /** 帖子发布人用户ID，关联 app_user.id。 */
+    private Long ownerUserId;
     /** 意向状态。 */
     private String status;
     /** 提交时间。 */

@@ -92,7 +92,7 @@ public class AdminController {
     @GetMapping("/accounts")
     public ApiResponse<PageResponse<AdminUserResponse>> adminAccounts(@CurrentAdmin AdminUser adminUser,
                                                                       @RequestParam(defaultValue = "1") Integer page,
-                                                                      @RequestParam(defaultValue = "8") Integer size) {
+                                                                      @RequestParam(defaultValue = "10") Integer size) {
         AdminGuard.requireSuperAdmin(adminUser, "查看管理员账号");
         return ApiResponse.success(adminAuthService.list(page, size));
     }
@@ -151,7 +151,7 @@ public class AdminController {
     @GetMapping("/reports")
     public ApiResponse<PageResponse<ContentReportResponse>> reports(@CurrentAdmin AdminUser adminUser,
                                                                     @RequestParam(defaultValue = "1") Integer page,
-                                                                    @RequestParam(defaultValue = "8") Integer size) {
+                                                                    @RequestParam(defaultValue = "10") Integer size) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.REPORT_REVIEW, "查看举报记录");
         return ApiResponse.success(contentReportService.adminReports(currentAdmin.getUsername(), page, size));
     }
@@ -167,7 +167,7 @@ public class AdminController {
     @GetMapping("/posts")
     public ApiResponse<PageResponse<MarketPostResponse>> posts(@CurrentAdmin AdminUser adminUser,
                                                                @RequestParam(defaultValue = "1") Integer page,
-                                                               @RequestParam(defaultValue = "8") Integer size) {
+                                                               @RequestParam(defaultValue = "10") Integer size) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.POST_AUDIT, "查看帖子审核列表");
         return ApiResponse.success(marketPostService.adminList(currentAdmin.getUsername(), page, size));
     }
@@ -183,7 +183,7 @@ public class AdminController {
     @GetMapping("/moments")
     public ApiResponse<PageResponse<MomentResponse>> moments(@CurrentAdmin AdminUser adminUser,
                                                              @RequestParam(defaultValue = "1") Integer page,
-                                                             @RequestParam(defaultValue = "8") Integer size) {
+                                                             @RequestParam(defaultValue = "10") Integer size) {
         AdminUser currentAdmin = AdminGuard.requirePermission(adminUser, AdminPermission.MOMENT_AUDIT, "查看动态审核列表");
         return ApiResponse.success(momentService.adminList(currentAdmin.getUsername(), page, size));
     }

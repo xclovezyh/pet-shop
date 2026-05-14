@@ -7,6 +7,7 @@ import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.LoginByPasswordRequest;
 import com.petshop.dto.user.LoginBySmsRequest;
 import com.petshop.dto.user.RegisterUserRequest;
+import com.petshop.dto.user.ResetPasswordRequest;
 import com.petshop.dto.user.UpdateUserProfileRequest;
 import com.petshop.dto.user.UserResponse;
 import com.petshop.dto.user.VerifyCodeResponse;
@@ -18,6 +19,7 @@ import com.petshop.support.UserGuard;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,18 +32,20 @@ import java.util.stream.Collectors;
 public class UserService {
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?:\\+?86[-\\s]?)?1[3-9]\\d{9}");
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_]{3,19}$");
+    private static final Pattern PASSWORD_DIGEST_PATTERN = Pattern.compile("^[a-fA-F0-9]{64}$");
     private static final String ROLE_USER = "USER";
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
+    private static final int PASSWORD_SALT_BYTES = 16;
 
     private final AppUserRepository users;
-    private final UserSessionService userSessionService;
+    private final UserJwtService userJwtService;
     private final Map<String, VerificationCode> verificationCodes = new ConcurrentHashMap<>();
 
     public UserService(AppUserRepository users,
-                       UserSessionService userSessionService) {
+                       UserJwtService userJwtService) {
         this.users = users;
-        this.userSessionService = userSessionService;
+        this.userJwtService = userJwtService;
     }
 
     public PageResponse<UserResponse> list(String adminNickname, Integer page, Integer size) {
@@ -64,13 +68,13 @@ public class UserService {
         response.setPhone(phone);
         response.setCode(code);
         response.setExpireSeconds(600);
-        response.setMessage("开发环境已直接返回验证码，接入短信服务后这里不再回传 code。");
+        response.setMessage("开发环境会直接返回验证码，接入短信服务后这里不会再返回 code 字段。");
         return response;
     }
 
     public AuthSessionResponse register(RegisterUserRequest request) {
         String username = normalizeUsername(request.getUsername());
-        String password = requirePassword(request.getPassword());
+        String passwordDigest = requirePasswordDigest(request.getPassword());
         String phone = normalizePhone(request.getPhone());
         String nickname = safe(request.getNickname());
         if (nickname.isEmpty()) {
@@ -87,13 +91,17 @@ public class UserService {
         if (users.existsByPhone(phone)) {
             throw new ApiException(ApiErrorCode.PHONE_ALREADY_EXISTS);
         }
+        if (users.existsByNickname(nickname)) {
+            throw new ApiException(ApiErrorCode.INVALID_PARAM, "昵称已被使用，请换一个昵称");
+        }
 
         AppUser user = new AppUser();
         user.setUsername(username);
         user.setPhone(phone);
         user.setNickname(nickname);
-        user.setPasswordSalt("");
-        user.setPasswordHash(PASSWORD_ENCODER.encode(password));
+        String salt = generatePasswordSalt();
+        user.setPasswordSalt(salt);
+        user.setPasswordHash(hashPassword(passwordDigest, salt));
         user.setRole(ROLE_USER);
         user.setBlacklisted(false);
         user.setCreatedAt(LocalDateTime.now());
@@ -103,8 +111,8 @@ public class UserService {
 
     public AuthSessionResponse loginByPassword(LoginByPasswordRequest request) {
         String account = safe(request.getAccount());
-        String password = safe(request.getPassword());
-        if (account.isEmpty() || password.isEmpty()) {
+        String passwordDigest = requirePasswordDigest(request.getPassword());
+        if (account.isEmpty()) {
             throw new ApiException(ApiErrorCode.INVALID_PARAM, "请输入账号和密码");
         }
         AppUser user = users.findByUsername(account)
@@ -113,7 +121,7 @@ public class UserService {
         if (UserGuard.ROLE_SUPER_ADMIN.equals(user.getRole())) {
             throw new ApiException(ApiErrorCode.LOGIN_FAILED);
         }
-        if (isBlank(user.getPasswordHash()) || !PASSWORD_ENCODER.matches(password, user.getPasswordHash())) {
+        if (!passwordMatches(user, passwordDigest)) {
             throw new ApiException(ApiErrorCode.LOGIN_FAILED);
         }
         return buildAuthSession(finishLogin(user));
@@ -125,6 +133,18 @@ public class UserService {
         AppUser user = users.findByPhone(phone)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "手机号尚未注册，请先注册账号"));
         return buildAuthSession(finishLogin(user));
+    }
+
+    public AuthSessionResponse resetPassword(ResetPasswordRequest request) {
+        String phone = normalizePhone(request.getPhone());
+        String passwordDigest = requirePasswordDigest(request.getPassword());
+        verifyCode(phone, request.getCode());
+        AppUser user = users.findByPhone(phone)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "手机号尚未注册，请先注册账号"));
+        String salt = generatePasswordSalt();
+        user.setPasswordSalt(salt);
+        user.setPasswordHash(hashPassword(passwordDigest, salt));
+        return buildAuthSession(finishLogin(users.save(user)));
     }
 
     public UserResponse me(AppUser currentUser) {
@@ -186,10 +206,23 @@ public class UserService {
     }
 
     private AuthSessionResponse buildAuthSession(AppUser user) {
+        LocalDateTime issuedAt = LocalDateTime.now();
+        String token = userJwtService.createToken(user, issuedAt);
+        user.setJwtToken(token);
+        user.setJwtTokenExpiresAt(userJwtService.expiresAt(issuedAt));
+        AppUser saved = users.save(user);
         AuthSessionResponse response = new AuthSessionResponse();
-        response.setToken(userSessionService.createSession(user));
-        response.setUser(toResponse(user));
+        response.setToken(token);
+        response.setUser(toResponse(saved));
         return response;
+    }
+
+    public void logout(String token) {
+        userJwtService.resolveUser(token).ifPresent(user -> {
+            user.setJwtToken("");
+            user.setJwtTokenExpiresAt(null);
+            users.save(user);
+        });
     }
 
     private void verifyCode(String phone, String code) {
@@ -219,12 +252,43 @@ public class UserService {
         return username;
     }
 
-    private String requirePassword(String value) {
-        String password = safe(value);
-        if (password.length() < 6 || password.length() > 64) {
-            throw new ApiException(ApiErrorCode.INVALID_PASSWORD, "密码长度需为 6-64 位");
+    private String requirePasswordDigest(String value) {
+        String passwordDigest = safe(value);
+        if (!PASSWORD_DIGEST_PATTERN.matcher(passwordDigest).matches()) {
+            throw new ApiException(ApiErrorCode.INVALID_PASSWORD, "密码参数格式不正确，请使用前端 SM3 摘要后再提交");
         }
-        return password;
+        return passwordDigest.toLowerCase();
+    }
+
+    private String generatePasswordSalt() {
+        byte[] bytes = new byte[PASSWORD_SALT_BYTES];
+        RANDOM.nextBytes(bytes);
+        return String.format("%032x", new BigInteger(1, bytes));
+    }
+
+    private String hashPassword(String passwordDigest, String salt) {
+        return PASSWORD_ENCODER.encode(saltedPassword(passwordDigest, salt));
+    }
+
+    private String saltedPassword(String passwordDigest, String salt) {
+        return safe(salt) + ":" + passwordDigest;
+    }
+
+    private boolean passwordMatches(AppUser user, String passwordDigest) {
+        if (isBlank(user.getPasswordHash())) {
+            return false;
+        }
+        if (!isBlank(user.getPasswordSalt())) {
+            return PASSWORD_ENCODER.matches(saltedPassword(passwordDigest, user.getPasswordSalt()), user.getPasswordHash());
+        }
+        if (!PASSWORD_ENCODER.matches(passwordDigest, user.getPasswordHash())) {
+            return false;
+        }
+        String salt = generatePasswordSalt();
+        user.setPasswordSalt(salt);
+        user.setPasswordHash(hashPassword(passwordDigest, salt));
+        users.save(user);
+        return true;
     }
 
     private UserResponse toResponse(AppUser user) {

@@ -8,6 +8,7 @@ import com.petshop.dto.post.MarketPostResponse;
 import com.petshop.model.AppUser;
 import com.petshop.service.AdminSessionService;
 import com.petshop.service.MarketPostService;
+import com.petshop.service.UserJwtService;
 import com.petshop.service.UserSessionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,9 @@ class MarketPostControllerTest {
     private UserSessionService userSessionService;
 
     @MockBean
+    private UserJwtService userJwtService;
+
+    @MockBean
     private AdminSessionService adminSessionService;
 
     @Test
@@ -48,8 +52,8 @@ class MarketPostControllerTest {
         response.setCategory("猫咪");
         response.setPrice(BigDecimal.ZERO);
 
-        when(marketPostService.create(any(MarketPostRequest.class))).thenReturn(response);
-        when(userSessionService.resolveUser("token-1")).thenReturn(Optional.of(activeUser()));
+        when(marketPostService.create(any(AppUser.class), any(MarketPostRequest.class))).thenReturn(response);
+        when(userJwtService.resolveUser("token-1")).thenReturn(Optional.of(activeUser()));
 
         String payload = "{\"author\":\"alice\",\"title\":\"出猫\",\"category\":\"猫咪\",\"description\":\"仅站内沟通\",\"price\":0}";
 
@@ -65,9 +69,9 @@ class MarketPostControllerTest {
 
     @Test
     void createShouldReturnErrorCodeWhenValidationFails() throws Exception {
-        when(marketPostService.create(any(MarketPostRequest.class)))
+        when(marketPostService.create(any(AppUser.class), any(MarketPostRequest.class)))
                 .thenThrow(new ApiException(ApiErrorCode.POST_CATEGORY_REQUIRED));
-        when(userSessionService.resolveUser("token-1")).thenReturn(Optional.of(activeUser()));
+        when(userJwtService.resolveUser("token-1")).thenReturn(Optional.of(activeUser()));
 
         String payload = "{\"author\":\"alice\",\"title\":\"出猫\",\"description\":\"仅站内沟通\",\"price\":0}";
 

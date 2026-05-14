@@ -50,8 +50,7 @@ public class MomentController {
     public ApiResponse<MomentResponse> create(@CurrentUser AppUser currentUser,
                                               @RequestBody MomentRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "发布日常");
-        request.setAuthor(user.getNickname());
-        return ApiResponse.success("日常发布成功", momentService.create(request));
+        return ApiResponse.success("日常发布成功", momentService.create(user, request));
     }
 
     @PostMapping("/{id}/like")
@@ -69,14 +68,13 @@ public class MomentController {
                                                       @CurrentUser AppUser currentUser,
                                                       @RequestBody MomentCommentRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "评论日常");
-        request.setAuthor(user.getNickname());
-        return ApiResponse.success("评论成功", momentService.createComment(id, request));
+        return ApiResponse.success("评论成功", momentService.createComment(id, user, request));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id, @CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "删除日常");
-        momentService.delete(id, user.getNickname());
+        momentService.delete(id, user);
         return ApiResponse.success("日常已删除", null);
     }
 
@@ -85,8 +83,7 @@ public class MomentController {
                                               @CurrentUser AppUser currentUser,
                                               @RequestBody MomentRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "编辑日常");
-        request.setAuthor(user.getNickname());
-        return ApiResponse.success("日常已更新", momentService.update(id, user.getNickname(), request));
+        return ApiResponse.success("日常已更新", momentService.update(id, user, request));
     }
 
     @PutMapping("/{id}/audit")

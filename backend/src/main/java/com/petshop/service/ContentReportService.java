@@ -52,11 +52,13 @@ public class ContentReportService {
         this.users = users;
     }
 
-    public List<ContentReportResponse> myReports(String reporter) {
-        requireText(reporter, ApiErrorCode.REPORT_REPORTER_REQUIRED, "请先登录后再查看举报记录");
-        return reports.findByReporterOrderByCreatedAtDesc(reporter.trim()).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public List<ContentReportResponse> myReports(AppUser currentUser) {
+        AppUser reporter = UserGuard.requireAuthenticated(currentUser, "查看举报记录");
+        List<ContentReport> items = reports.findByReporterUserIdOrderByCreatedAtDesc(reporter.getId());
+        if (items.isEmpty()) {
+            items = reports.findByReporterOrderByCreatedAtDesc(reporter.getNickname());
+        }
+        return items.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     public PageResponse<ContentReportResponse> adminReports(String admin, Integer page, Integer size) {
@@ -67,12 +69,11 @@ public class ContentReportService {
         return adminReports(admin, 1, 50).getItems();
     }
 
-    public ContentReportResponse create(ContentReportCreateRequest request) {
+    public ContentReportResponse create(AppUser currentUser, ContentReportCreateRequest request) {
+        AppUser reporter = UserGuard.requireAuthenticated(currentUser, "举报");
         if (request == null) {
             throw new ApiException(ApiErrorCode.REPORT_CREATE_PAYLOAD_REQUIRED);
         }
-        requireText(request.getReporter(), ApiErrorCode.REPORT_REPORTER_REQUIRED, "请先登录后再举报");
-        UserGuard.requireActive(users, request.getReporter(), "举报");
         requireText(request.getTargetType(), ApiErrorCode.REPORT_TARGET_TYPE_REQUIRED, "请选择举报内容类型");
         if (request.getTargetId() == null) {
             throw new ApiException(ApiErrorCode.REPORT_TARGET_REQUIRED);
@@ -84,7 +85,8 @@ public class ContentReportService {
         ContentReport report = new ContentReport();
         report.setTargetType(request.getTargetType().trim());
         report.setTargetId(request.getTargetId());
-        report.setReporter(request.getReporter().trim());
+        report.setReporter(reporter.getNickname());
+        report.setReporterUserId(reporter.getId());
         report.setReason(request.getReason().trim());
         report.setStatus(STATUS_PENDING);
         report.setCreatedAt(LocalDateTime.now());
@@ -99,7 +101,7 @@ public class ContentReportService {
         String status = request == null || isBlank(request.getStatus()) ? STATUS_HANDLED : request.getStatus().trim();
         String action = request == null || isBlank(request.getAction()) ? ACTION_NONE : request.getAction().trim();
         String note = request == null ? "" : safe(request.getNote());
-        String author = targetAuthor(report.getTargetType(), report.getTargetId());
+        TargetAuthor author = targetAuthor(report.getTargetType(), report.getTargetId());
 
         if (ACTION_REMOVE_TARGET.equals(action)) {
             setTargetAuditStatus(report.getTargetType(), report.getTargetId(), AUDIT_REMOVED);
@@ -107,8 +109,11 @@ public class ContentReportService {
             setTargetAuditStatus(report.getTargetType(), report.getTargetId(), AUDIT_APPROVED);
         } else if (ACTION_BLOCK_AUTHOR.equals(action) || ACTION_REMOVE_AND_BLOCK_AUTHOR.equals(action)) {
             setTargetAuditStatus(report.getTargetType(), report.getTargetId(), AUDIT_REMOVED);
-            if (!isBlank(author)) {
-                AppUser user = users.findByNickname(author)
+            if (!isBlank(author.nickname) || author.userId != null) {
+                AppUser user = author.userId == null
+                        ? users.findByNickname(author.nickname)
+                        .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在"))
+                        : users.findById(author.userId)
                         .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND, "内容作者不存在"));
                 user.setBlacklisted(true);
                 user.setBlacklistReason(isBlank(note) ? "因举报处理被限制" : note.trim());
@@ -137,14 +142,18 @@ public class ContentReportService {
         throw new ApiException(ApiErrorCode.REPORT_TARGET_TYPE_UNSUPPORTED);
     }
 
-    private String targetAuthor(String targetType, Long targetId) {
+    private TargetAuthor targetAuthor(String targetType, Long targetId) {
         if (TARGET_TYPE_POST.equals(targetType)) {
-            return posts.findById(targetId).map(MarketPost::getAuthor).orElse("");
+            return posts.findById(targetId)
+                    .map(post -> new TargetAuthor(post.getAuthor(), post.getAuthorUserId()))
+                    .orElse(new TargetAuthor("", null));
         }
         if (TARGET_TYPE_MOMENT.equals(targetType)) {
-            return moments.findById(targetId).map(Moment::getAuthor).orElse("");
+            return moments.findById(targetId)
+                    .map(moment -> new TargetAuthor(moment.getAuthor(), moment.getAuthorUserId()))
+                    .orElse(new TargetAuthor("", null));
         }
-        return "";
+        return new TargetAuthor("", null);
     }
 
     private void setTargetAuditStatus(String targetType, Long targetId, String auditStatus) {
@@ -192,5 +201,15 @@ public class ContentReportService {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static final class TargetAuthor {
+        private final String nickname;
+        private final Long userId;
+
+        private TargetAuthor(String nickname, Long userId) {
+            this.nickname = nickname;
+            this.userId = userId;
+        }
     }
 }

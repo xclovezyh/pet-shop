@@ -9,4 +9,6 @@ public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, 
     List<PrivateMessage> findByThreadIdOrderByCreatedAtAscIdAsc(Long threadId);
 
     long countByThreadIdAndSenderNotAndReadByRecipientFalse(Long threadId, String sender);
+
+    long countByThreadIdAndSenderUserIdNotAndReadByRecipientFalse(Long threadId, Long senderUserId);
 }

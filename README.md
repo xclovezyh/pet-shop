@@ -70,8 +70,8 @@ http://127.0.0.1:8080/api
 
 ```powershell
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 普通用户前台：
@@ -208,17 +208,27 @@ mvn test
 
 ```powershell
 cd frontend
-npm run build
+pnpm build
 ```
 
 前端 E2E：
 
 ```powershell
 cd frontend
-npm run test:e2e
+pnpm test:e2e
 ```
 
 ## 文档
 
+- 访问入口与账号说明：[ACCESS_GUIDE.md](/H:/study-code/pet-shop/ACCESS_GUIDE.md)
 - 开发规范：[BACKEND_DEVELOPMENT_SPEC.md](/H:/study-code/pet-shop/BACKEND_DEVELOPMENT_SPEC.md)
 - 阶段计划：[DEVELOPMENT_PLAN.md](/H:/study-code/pet-shop/DEVELOPMENT_PLAN.md)
+
+## 用户认证安全补充
+
+- 普通用户登录态已切换为 `JWT Bearer Token`
+- 普通用户前端密码提交规则：浏览器端先执行 `SM3` 摘要，再通过 HTTPS/HTTP 请求发送摘要值
+- 普通用户数据库密码存储规则：服务端对前端传入的 `SM3` 摘要再执行 `BCrypt` 加盐单向哈希后保存
+- 数据库中不保存明文密码，也不提供可逆解密能力
+- `user_session` 表保留为历史兼容用途，便于旧 token 平滑退出，新增登录默认不再写入该表
+- 管理员账号体系暂时保持独立，不与普通用户 JWT 登录混用

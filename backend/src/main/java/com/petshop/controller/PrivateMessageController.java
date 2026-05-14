@@ -31,21 +31,20 @@ public class PrivateMessageController {
     @GetMapping
     public ApiResponse<List<MessageThreadResponse>> list(@CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看私信");
-        return ApiResponse.success(messageService.list(user.getNickname()));
+        return ApiResponse.success(messageService.list(user));
     }
 
     @GetMapping("/{id}")
     public ApiResponse<MessageThreadResponse> detail(@PathVariable Long id, @CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看私信");
-        return ApiResponse.success(messageService.detail(id, user.getNickname()));
+        return ApiResponse.success(messageService.detail(id, user));
     }
 
     @PostMapping("/start")
     public ApiResponse<MessageThreadResponse> start(@CurrentUser AppUser currentUser,
                                                     @RequestBody MessageStartRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "发起私信");
-        request.setSender(user.getNickname());
-        return ApiResponse.success("私信会话已创建", messageService.start(request));
+        return ApiResponse.success("私信会话已创建", messageService.start(user, request));
     }
 
     @PostMapping("/{id}")
@@ -53,13 +52,12 @@ public class PrivateMessageController {
                                                  @CurrentUser AppUser currentUser,
                                                  @RequestBody MessageSendRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "发送私信");
-        request.setSender(user.getNickname());
-        return ApiResponse.success("私信已发送", messageService.send(id, request));
+        return ApiResponse.success("私信已发送", messageService.send(id, user, request));
     }
 
     @PutMapping("/{id}/read")
     public ApiResponse<MessageThreadResponse> markRead(@PathVariable Long id, @CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看私信");
-        return ApiResponse.success("未读状态已更新", messageService.markRead(id, user.getNickname()));
+        return ApiResponse.success("未读状态已更新", messageService.markRead(id, user));
     }
 }

@@ -29,27 +29,26 @@ public class PostFavoriteController {
     @GetMapping
     public ApiResponse<List<FavoriteResponse>> list(@CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看收藏");
-        return ApiResponse.success(favoriteService.list(user.getNickname()));
+        return ApiResponse.success(favoriteService.list(user));
     }
 
     @GetMapping("/post-ids")
     public ApiResponse<List<Long>> postIds(@CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看收藏");
-        return ApiResponse.success(favoriteService.postIds(user.getNickname()));
+        return ApiResponse.success(favoriteService.postIds(user));
     }
 
     @PostMapping
     public ApiResponse<FavoriteResponse> create(@CurrentUser AppUser currentUser,
                                                 @RequestBody FavoriteCreateRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "收藏帖子");
-        request.setUserNickname(user.getNickname());
-        return ApiResponse.success("收藏成功", favoriteService.create(request));
+        return ApiResponse.success("收藏成功", favoriteService.create(user, request));
     }
 
     @DeleteMapping("/{postId}")
     public ApiResponse<Void> delete(@PathVariable Long postId, @CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "取消收藏");
-        favoriteService.delete(postId, user.getNickname());
+        favoriteService.delete(user, postId);
         return ApiResponse.success("已取消收藏", null);
     }
 }

@@ -37,6 +37,8 @@ public class MarketPost {
     private String contact;
     /** 发布人昵称。 */
     private String author;
+    /** 发布人用户ID，关联 app_user.id。 */
+    private Long authorUserId;
     /** 交易状态。 */
     private String status;
     /** 审核状态。 */

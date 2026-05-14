@@ -16,20 +16,25 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "post_favorites", uniqueConstraints = @UniqueConstraint(columnNames = {"user_nickname", "post_id"}))
+@Table(name = "post_favorites", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "post_id"}))
 public class PostFavorite {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     /** 收藏ID。 */
     private Long id;
 
-    /** 收藏人昵称。 */
-    @Column(name = "user_nickname", nullable = false)
-    private String userNickname;
+    /** 收藏用户ID，关联 app_user.id。 */
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    /** 收藏时的用户昵称快照，仅用于展示，不作为业务关联主键。 */
+    @Column(name = "user_nickname_snapshot")
+    private String userNicknameSnapshot;
 
     /** 交易帖ID。 */
     @Column(name = "post_id", nullable = false)
     private Long postId;
+
     /** 收藏时间。 */
     private LocalDateTime createdAt;
 

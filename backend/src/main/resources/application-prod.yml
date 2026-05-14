@@ -31,3 +31,5 @@ app:
   upload-url-prefix: ${APP_UPLOAD_URL_PREFIX:/api/uploads/}
   admin-usernames: ${APP_ADMIN_USERNAMES:${APP_ADMIN_NICKNAMES:superadmin}}
   admin-password: ${APP_ADMIN_PASSWORD}
+  user-jwt-secret: ${APP_USER_JWT_SECRET}
+  user-jwt-hours: ${APP_USER_JWT_HOURS:6}

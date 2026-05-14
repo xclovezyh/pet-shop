@@ -31,6 +31,10 @@ public class AppUser {
     /** 预留密码盐字段，BCrypt 已内置盐。 */
     @JsonIgnore
     private String passwordSalt;
+    @JsonIgnore
+    private String jwtToken;
+    @JsonIgnore
+    private LocalDateTime jwtTokenExpiresAt;
     /** 用户角色：USER 普通用户，SUPER_ADMIN 超级管理员。 */
     private String role;
     /** 头像图片地址。 */

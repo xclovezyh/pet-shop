@@ -5,6 +5,7 @@ import com.petshop.api.ApiException;
 import com.petshop.dto.common.PageResponse;
 import com.petshop.dto.post.MarketPostRequest;
 import com.petshop.dto.post.MarketPostResponse;
+import com.petshop.model.AppUser;
 import com.petshop.model.MarketPost;
 import com.petshop.repository.AppUserRepository;
 import com.petshop.repository.MarketPostRepository;
@@ -23,6 +24,10 @@ public class MarketPostService {
     private static final String CONTACT_VALUE = "站内私信";
     private static final String AUDIT_APPROVED = "审核通过";
     private static final String AUDIT_REMOVED = "已下架";
+    private static final String STATUS_ON_SALE = "在售";
+    private static final String STATUS_RESERVED = "已预约";
+    private static final String STATUS_SOLD = "已成交";
+    private static final String STATUS_CLOSED = "已关闭";
 
     private final MarketPostRepository posts;
     private final AppUserRepository users;
@@ -35,14 +40,14 @@ public class MarketPostService {
     public List<MarketPostResponse> list() {
         return posts.findAll().stream()
                 .filter(post -> !AUDIT_REMOVED.equals(post.getAuditStatus()))
-                .sorted(Comparator.comparing(MarketPost::getCreatedAt).reversed())
+                .sorted(publicPostComparator())
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     public PageResponse<MarketPostResponse> adminList(String adminNickname, Integer page, Integer size) {
         return PageSupport.slice(posts.findAll().stream()
-                .sorted(Comparator.comparing(MarketPost::getCreatedAt).reversed())
+                .sorted(Comparator.comparing(MarketPost::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList()), page, size, this::toResponse);
     }
 
@@ -51,39 +56,47 @@ public class MarketPostService {
     }
 
     public MarketPostResponse detail(Long id) {
-        return toResponse(findById(id));
+        MarketPost post = findById(id);
+        if (AUDIT_REMOVED.equals(post.getAuditStatus())) {
+            throw new ApiException(ApiErrorCode.POST_NOT_FOUND);
+        }
+        return toResponse(post);
     }
 
-    public MarketPostResponse create(MarketPostRequest request) {
-        validateCreateOrUpdate(request);
+    public MarketPostResponse create(AppUser currentUser, MarketPostRequest request) {
+        AppUser user = requireActive(currentUser, "发布帖子");
+        request.setAuthor(user.getNickname());
+        validateCreateOrUpdate(user, request);
         MarketPost post = new MarketPost();
         copyFields(post, request);
+        post.setAuthorUserId(user.getId());
         post.setCreatedAt(LocalDateTime.now());
         post.setContact(CONTACT_VALUE);
         post.setAuditStatus(AUDIT_APPROVED);
         if (isBlank(post.getStatus())) {
-            post.setStatus("在售");
+            post.setStatus(STATUS_ON_SALE);
         }
         return toResponse(posts.save(post));
     }
 
-    public void delete(Long id, String author) {
+    public void delete(Long id, AppUser currentUser) {
+        AppUser user = requireActive(currentUser, "删除帖子");
         MarketPost post = findById(id);
-        if (!safe(post.getAuthor()).equals(author)) {
+        if (!ownsPost(post, user)) {
             throw new ApiException(ApiErrorCode.POST_AUTHOR_MISMATCH, "只能删除自己的帖子");
         }
-        UserGuard.requireActive(users, author, "删除帖子");
         posts.delete(post);
     }
 
-    public MarketPostResponse update(Long id, String author, MarketPostRequest request) {
+    public MarketPostResponse update(Long id, AppUser currentUser, MarketPostRequest request) {
+        AppUser user = requireActive(currentUser, "编辑帖子");
         MarketPost existing = findById(id);
-        if (!safe(existing.getAuthor()).equals(author)) {
+        if (!ownsPost(existing, user)) {
             throw new ApiException(ApiErrorCode.POST_AUTHOR_MISMATCH, "只能编辑自己的帖子");
         }
-        UserGuard.requireActive(users, author, "编辑帖子");
 
-        validateCreateOrUpdate(request);
+        request.setAuthor(user.getNickname());
+        validateCreateOrUpdate(user, request);
         existing.setTitle(request.getTitle());
         existing.setType(request.getType());
         existing.setCategory(request.getCategory());
@@ -96,7 +109,7 @@ public class MarketPostService {
         existing.setContact(CONTACT_VALUE);
         existing.setAuditStatus(AUDIT_APPROVED);
         if (isBlank(existing.getStatus())) {
-            existing.setStatus("在售");
+            existing.setStatus(STATUS_ON_SALE);
         }
         return toResponse(posts.save(existing));
     }
@@ -110,11 +123,10 @@ public class MarketPostService {
         return toResponse(posts.save(post));
     }
 
-    private void validateCreateOrUpdate(MarketPostRequest request) {
-        if (isBlank(request.getAuthor())) {
+    private void validateCreateOrUpdate(AppUser user, MarketPostRequest request) {
+        if (isBlank(request.getAuthor()) || user == null || user.getId() == null) {
             throw new ApiException(ApiErrorCode.UNAUTHORIZED, "请先登录后再发布");
         }
-        UserGuard.requireActive(users, request.getAuthor(), "发布帖子");
         if (isBlank(request.getCategory())) {
             throw new ApiException(ApiErrorCode.POST_CATEGORY_REQUIRED);
         }
@@ -143,6 +155,30 @@ public class MarketPostService {
         post.setDescription(request.getDescription());
     }
 
+    private Comparator<MarketPost> publicPostComparator() {
+        return Comparator
+                .comparingInt(this::statusPriority)
+                .thenComparing(MarketPost::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(MarketPost::getId, Comparator.nullsLast(Comparator.reverseOrder()));
+    }
+
+    private int statusPriority(MarketPost post) {
+        String status = safe(post.getStatus());
+        if (STATUS_ON_SALE.equals(status)) {
+            return 0;
+        }
+        if (STATUS_RESERVED.equals(status)) {
+            return 1;
+        }
+        if (STATUS_SOLD.equals(status)) {
+            return 2;
+        }
+        if (STATUS_CLOSED.equals(status)) {
+            return 3;
+        }
+        return 4;
+    }
+
     private MarketPostResponse toResponse(MarketPost post) {
         MarketPostResponse response = new MarketPostResponse();
         response.setId(post.getId());
@@ -168,5 +204,13 @@ public class MarketPostService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private AppUser requireActive(AppUser currentUser, String action) {
+        return UserGuard.requireAuthenticated(currentUser, action);
+    }
+
+    private boolean ownsPost(MarketPost post, AppUser user) {
+        return post.getAuthorUserId() != null && user.getId() != null && post.getAuthorUserId().equals(user.getId());
     }
 }

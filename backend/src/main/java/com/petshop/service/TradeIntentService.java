@@ -5,6 +5,7 @@ import com.petshop.api.ApiException;
 import com.petshop.dto.post.MarketPostResponse;
 import com.petshop.dto.trade.TradeIntentCreateRequest;
 import com.petshop.dto.trade.TradeIntentResponse;
+import com.petshop.model.AppUser;
 import com.petshop.model.MarketPost;
 import com.petshop.model.TradeIntent;
 import com.petshop.repository.AppUserRepository;
@@ -35,28 +36,37 @@ public class TradeIntentService {
         this.users = users;
     }
 
-    public List<TradeIntentResponse> list(String user, String role) {
-        requireUser(user);
+    public List<TradeIntentResponse> list(AppUser currentUser, String role) {
+        AppUser user = requireUser(currentUser);
         List<TradeIntent> items = "owner".equals(role)
-                ? intents.findByOwnerOrderByUpdatedAtDesc(user)
-                : intents.findByRequesterOrderByUpdatedAtDesc(user);
+                ? intents.findByOwnerUserIdOrderByUpdatedAtDesc(user.getId())
+                : intents.findByRequesterUserIdOrderByUpdatedAtDesc(user.getId());
+        if (items.isEmpty()) {
+            items = "owner".equals(role)
+                    ? intents.findByOwnerOrderByUpdatedAtDesc(user.getNickname())
+                    : intents.findByRequesterOrderByUpdatedAtDesc(user.getNickname());
+        }
         return items.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    public TradeIntentResponse create(TradeIntentCreateRequest request) {
+    public TradeIntentResponse create(AppUser currentUser, TradeIntentCreateRequest request) {
+        AppUser user = requireUser(currentUser);
         if (request == null || request.getPostId() == null) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_POST_REQUIRED);
         }
-        requireUser(request.getRequester());
         MarketPost post = posts.findById(request.getPostId())
                 .orElseThrow(() -> new ApiException(ApiErrorCode.POST_NOT_FOUND));
         if (isBlank(post.getAuthor())) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_POST_AUTHOR_EMPTY);
         }
-        if (post.getAuthor().equals(request.getRequester())) {
+        if ((post.getAuthorUserId() != null && post.getAuthorUserId().equals(user.getId()))
+                || post.getAuthor().equals(user.getNickname())) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_SELF_FORBIDDEN);
         }
-        if (intents.existsByPostIdAndRequester(post.getId(), request.getRequester())) {
+        boolean duplicate = post.getAuthorUserId() == null
+                ? intents.existsByPostIdAndRequester(post.getId(), user.getNickname())
+                : intents.existsByPostIdAndRequesterUserId(post.getId(), user.getId());
+        if (duplicate) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_DUPLICATE);
         }
         String message = safe(request.getMessage()).trim();
@@ -69,8 +79,10 @@ public class TradeIntentService {
         TradeIntent intent = new TradeIntent();
         intent.setPostId(post.getId());
         intent.setPostTitle(post.getTitle());
-        intent.setRequester(request.getRequester());
+        intent.setRequester(user.getNickname());
+        intent.setRequesterUserId(user.getId());
         intent.setOwner(post.getAuthor());
+        intent.setOwnerUserId(post.getAuthorUserId());
         intent.setMessage(message);
         intent.setStatus(STATUS_PENDING);
         intent.setCreatedAt(now);
@@ -78,17 +90,19 @@ public class TradeIntentService {
         return toResponse(intents.save(intent));
     }
 
-    public TradeIntentResponse updateStatus(Long id, String user, String status) {
-        requireUser(user);
+    public TradeIntentResponse updateStatus(Long id, AppUser currentUser, String status) {
+        AppUser user = requireUser(currentUser);
         TradeIntent intent = intents.findById(id)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.TRADE_INTENT_NOT_FOUND));
-        if (!user.equals(intent.getOwner()) && !user.equals(intent.getRequester())) {
+        boolean requester = isRequester(intent, user);
+        boolean owner = isOwner(intent, user);
+        if (!owner && !requester) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_FORBIDDEN);
         }
-        if (user.equals(intent.getRequester()) && !STATUS_CANCELED.equals(status)) {
+        if (requester && !STATUS_CANCELED.equals(status)) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_REQUESTER_CANCEL_ONLY);
         }
-        if (user.equals(intent.getOwner()) && STATUS_CANCELED.equals(status)) {
+        if (owner && STATUS_CANCELED.equals(status)) {
             throw new ApiException(ApiErrorCode.TRADE_INTENT_OWNER_CANCEL_FORBIDDEN);
         }
         if (!STATUS_ACCEPTED.equals(status) && !STATUS_REJECTED.equals(status) && !STATUS_CANCELED.equals(status)) {
@@ -135,11 +149,25 @@ public class TradeIntentService {
         return response;
     }
 
-    private void requireUser(String user) {
-        if (isBlank(user)) {
+    private AppUser requireUser(AppUser user) {
+        if (user == null || user.getId() == null || isBlank(user.getNickname())) {
             throw new ApiException(ApiErrorCode.UNAUTHORIZED, "请先登录后再使用交易意向");
         }
-        UserGuard.requireActive(users, user, "使用交易意向");
+        return UserGuard.requireAuthenticated(user, "使用交易意向");
+    }
+
+    private boolean isRequester(TradeIntent intent, AppUser user) {
+        if (intent.getRequesterUserId() != null) {
+            return intent.getRequesterUserId().equals(user.getId());
+        }
+        return user.getNickname().equals(intent.getRequester());
+    }
+
+    private boolean isOwner(TradeIntent intent, AppUser user) {
+        if (intent.getOwnerUserId() != null) {
+            return intent.getOwnerUserId().equals(user.getId());
+        }
+        return user.getNickname().equals(intent.getOwner());
     }
 
     private String safe(String value) {

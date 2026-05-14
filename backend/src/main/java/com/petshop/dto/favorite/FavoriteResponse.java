@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 public class FavoriteResponse {
     private Long id;
+    private Long userId;
     private String userNickname;
     private Long postId;
     private LocalDateTime createdAt;
@@ -17,6 +18,14 @@ public class FavoriteResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public String getUserNickname() {

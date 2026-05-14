@@ -30,7 +30,7 @@ public class ContentReportController {
     @GetMapping
     public ApiResponse<List<ContentReportResponse>> myReports(@CurrentUser AppUser currentUser) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看举报记录");
-        return ApiResponse.success(contentReportService.myReports(user.getNickname()));
+        return ApiResponse.success(contentReportService.myReports(user));
     }
 
     @GetMapping("/admin")
@@ -43,8 +43,7 @@ public class ContentReportController {
     public ApiResponse<ContentReportResponse> create(@CurrentUser AppUser currentUser,
                                                      @RequestBody ContentReportCreateRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "举报内容");
-        request.setReporter(user.getNickname());
-        return ApiResponse.success("举报已提交", contentReportService.create(request));
+        return ApiResponse.success("举报已提交", contentReportService.create(user, request));
     }
 
     @PutMapping("/{id}/handle")

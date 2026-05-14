@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import { apiFetch, clearAuthSession, getStoredUser, readApiData, readError, saveAuthSession, saveStoredUser, type AuthSession } from './api';
+import { hashPasswordForTransport } from './security';
 
 const API_BASE = '/api';
 const CONTACT_VALUE = '站内私信';
@@ -30,6 +31,7 @@ const phonePattern = /(?:\+?86[-\s]?)?1[3-9]\d{9}/;
 const offsiteContactPattern = /(?:微信|vx|wechat|qq|企鹅|扣扣)[:：\s-]*[a-z0-9_-]{4,}|[1-9]\d{5,11}/i;
 const sensitiveWords = ['虐待', '毒药', '赌博', '色情', '诈骗', '保护动物', '野生动物', '线下交易', '加微信', '加qq'];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const DEFAULT_PAGE_SIZE = 10;
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const tradeStatuses = ['在售', '已预约', '已成交', '已关闭'];
 const tradeTypeConfigs: Record<string, { title: string; priceLabel: string; description: string; fields: Array<{ name: string; label: string; placeholder: string; required?: boolean }> }> = {
@@ -121,7 +123,7 @@ type Moment = {
   createdAt?: string;
 };
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
-type PostFavorite = { id: number; userNickname: string; postId: number; createdAt: string; post?: MarketPost };
+type PostFavorite = { id: number; userId: number; userNickname?: string; postId: number; createdAt: string; post?: MarketPost };
 type TradeIntent = { id: number; postId: number; postTitle: string; requester: string; owner: string; message: string; status: string; createdAt: string; updatedAt: string; post?: MarketPost };
 type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reporter: string; reason: string; status: string; createdAt: string; handledBy?: string; handledAt?: string; handleNote?: string };
 type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
@@ -187,7 +189,7 @@ function useApi<T>(path: string, fallback: T) {
     setLoading(true);
     apiFetch(`${API_BASE}${path}`)
       .then((res) => readApiData<T>(res))
-      .then(setData)
+      .then((next) => setData(next ?? fallback))
       .catch(() => setData(fallback))
       .finally(() => setLoading(false));
   }, [path, fallback]);
@@ -224,7 +226,7 @@ function App() {
     .filter((pet) => matchesCity(cityFilter, pet.city))
     .filter((pet) => matchesPrice(minPrice, maxPrice, pet.price))
     .filter((pet) => matchesText(searchQuery, [pet.name, pet.category, pet.breed, pet.city, pet.status, pet.healthInfo, pet.personality])), sortMode);
-  const filteredPosts = sortByTime(posts.data
+  const filteredPosts = sortPostsForDisplay(posts.data
     .filter((post) => matchesCategory(categoryFilter, post.category))
     .filter((post) => matchesCity(cityFilter, post.city))
     .filter((post) => matchesType(typeFilter, post.type))
@@ -537,7 +539,7 @@ function LoginBox({ currentUser, unreadCount, onAccount, onMine, onProfile, onMe
 }
 
 function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserProfile | null; onLogin: (session: UserAuthSession) => void; onProfile: () => void }) {
-  const [mode, setMode] = React.useState<'password' | 'sms' | 'register'>('password');
+  const [mode, setMode] = React.useState<'password' | 'sms' | 'register' | 'reset'>('password');
   const [account, setAccount] = React.useState('');
   const [username, setUsername] = React.useState('');
   const [nickname, setNickname] = React.useState('');
@@ -548,6 +550,14 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [sending, setSending] = React.useState(false);
+
+  const authModes: Array<{ key: 'password' | 'sms' | 'register' | 'reset'; label: string; title: string; helper: string }> = [
+    { key: 'password', label: '密码登录', title: '欢迎回来', helper: '使用用户名或手机号继续进入你的账号。' },
+    { key: 'sms', label: '验证码登录', title: '手机号快捷登录', helper: '适合临时登录，验证码通过手机校验身份。' },
+    { key: 'register', label: '注册账号', title: '创建新账号', helper: '注册后即可发布、收藏、私信与管理自己的内容。' },
+    { key: 'reset', label: '重置密码', title: '找回账号密码', helper: '通过手机号验证码重置密码，并自动完成登录。' }
+  ];
+  const currentMode = authModes.find((item) => item.key === mode) || authModes[0];
 
   async function sendCode() {
     const mobile = phone.trim();
@@ -578,12 +588,21 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
     setNotice('');
     setBusy(true);
     try {
-      const endpoint = mode === 'register' ? '/users/register' : mode === 'sms' ? '/users/login/sms' : '/users/login/password';
+      const passwordDigest = mode === 'sms' ? '' : hashPasswordForTransport(password);
+      const endpoint = mode === 'register'
+        ? '/users/register'
+        : mode === 'sms'
+          ? '/users/login/sms'
+          : mode === 'reset'
+            ? '/users/password/reset'
+            : '/users/login/password';
       const payload = mode === 'register'
-        ? { username, nickname, phone, password, code }
+        ? { username, nickname, phone, password: passwordDigest, code }
         : mode === 'sms'
           ? { phone, code }
-          : { account, password };
+          : mode === 'reset'
+            ? { phone, code, password: passwordDigest }
+            : { account, password: passwordDigest };
       const res = await apiFetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -592,7 +611,11 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
       if (!res.ok) throw new Error(await readError(res));
       const session = await readApiData<UserAuthSession>(res);
       onLogin(session);
-      setNotice(mode === 'register' ? '注册成功，已自动登录。' : '登录成功。');
+      setNotice(mode === 'register'
+        ? '注册成功，已自动登录。'
+        : mode === 'reset'
+          ? '密码已重置，已自动登录。'
+          : '登录成功。');
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败，请稍后重试。');
     } finally {
@@ -602,66 +625,124 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
 
   if (currentUser) {
     return (
-      <section data-testid="account-page" className="page section accountPage">
-        <SectionTitle icon={<User />} title="账号中心" helper="管理登录身份、个人资料和站内沟通入口" />
-        <div className="accountShell signed">
-          <div className="accountSummary">
-            <span className="avatarLarge">{currentUser.nickname.slice(0, 1)}</span>
-            <div>
-              <h3>{currentUser.nickname}</h3>
-              <p>{currentUser.username ? `用户名：${currentUser.username}` : '已登录账号'}</p>
-              {currentUser.phone && <p>手机号：{maskPhone(currentUser.phone)}</p>}
-              {isSuperAdmin(currentUser) && <strong>超级管理员</strong>}
+      <section data-testid="account-page" className="page section accountPage accountPageCentered">
+        <div className="accountWorkspace signed">
+          <aside className="accountShowcase">
+            <div className="accountBadge"><ShieldCheck size={16} />账号中心</div>
+            <h1>{currentUser.nickname}</h1>
+            <p>你的登录身份已经绑定到主站发布、收藏、站内私信与个人主页，后续内容都会围绕这个账号展开。</p>
+            <div className="accountShowcaseStats">
+              <div><strong>已登录</strong><span>当前会话状态正常</span></div>
+              <div><strong>站内私信</strong><span>交易沟通固定留在平台内</span></div>
+              <div><strong>账号独立</strong><span>普通用户与管理台账号分离</span></div>
             </div>
+          </aside>
+          <div className="accountPanel signedPanel">
+            <div className="accountPanelHeader">
+              <div className="accountPanelIcon"><User size={18} /></div>
+              <div>
+                <h2>账号概览</h2>
+                <p>管理登录身份、个人资料和站内沟通入口。</p>
+              </div>
+            </div>
+            <div className="accountSummary">
+              <span className="avatarLarge">{currentUser.nickname.slice(0, 1)}</span>
+              <div>
+                <h3>{currentUser.nickname}</h3>
+                <p>{currentUser.username ? `用户名：${currentUser.username}` : '已登录账号'}</p>
+                {currentUser.phone && <p>手机号：{maskPhone(currentUser.phone)}</p>}
+                {isSuperAdmin(currentUser) && <strong>超级管理员</strong>}
+              </div>
+            </div>
+            <div className="accountQuickList">
+              <div><CheckCircle2 size={16} /><span>账号身份已生效，可直接发布与管理自己的信息</span></div>
+              <div><Heart size={16} /><span>收藏、交易意向与私信都会跟随当前账号保存</span></div>
+              <div><MessageCircle size={16} /><span>站外联系方式仍然受限，沟通统一保留在站内</span></div>
+            </div>
+            <button type="button" onClick={onProfile}>查看个人主页</button>
           </div>
-          <button type="button" onClick={onProfile}>查看个人主页</button>
         </div>
       </section>
     );
   }
 
   return (
-      <section data-testid="account-page" className="page section accountPage">
-      <SectionTitle icon={<LogIn />} title="登录 / 注册" helper="使用手机号验证码或用户名密码进入账号，发布、收藏、私信都绑定到你的账号" />
-      <div className="accountShell">
-        <div className="accountTabs">
-          <button data-testid="account-mode-password" type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>密码登录</button>
-          <button data-testid="account-mode-sms" type="button" className={mode === 'sms' ? 'active' : ''} onClick={() => setMode('sms')}>验证码登录</button>
-          <button data-testid="account-mode-register" type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册账号</button>
+    <section data-testid="account-page" className="page section accountPage accountPageCentered">
+      <div className="accountWorkspace">
+        <aside className="accountShowcase">
+          <div className="accountBadge"><PawPrint size={16} />萌宠集市账号</div>
+          <h1>把你的发布、收藏和站内沟通放进同一个账号里</h1>
+          <p>这是主站用户入口，只处理普通用户登录、注册、验证码登录与密码重置。登录后可直接管理自己发布的帖子、动态和沟通记录。</p>
+          <div className="accountShowcaseStats">
+            <div><strong>用户名 / 手机号</strong><span>支持密码登录与验证码登录两种主流程</span></div>
+            <div><strong>站内私信</strong><span>交易联系固定走平台内消息，不暴露手机号</span></div>
+            <div><strong>密码安全</strong><span>前端摘要传输，服务端加盐单向哈希存储</span></div>
+          </div>
+        </aside>
+        <div className="accountPanel">
+          <div className="accountPanelHeader">
+            <div className="accountPanelIcon"><LogIn size={18} /></div>
+            <div>
+              <h2>{currentMode.title}</h2>
+              <p>{currentMode.helper}</p>
+            </div>
+          </div>
+          <div className="accountTabs" role="tablist" aria-label="账号操作模式">
+            {authModes.map((item) => (
+              <button
+                data-testid={`account-mode-${item.key}`}
+                type="button"
+                key={item.key}
+                className={mode === item.key ? 'active' : ''}
+                onClick={() => setMode(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <form className="accountForm" onSubmit={submit}>
+            {mode === 'password' && (
+              <>
+                <label>用户名或手机号<input data-testid="password-login-account" value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
+                <label>密码<input data-testid="password-login-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入登录密码" /></label>
+              </>
+            )}
+            {mode === 'sms' && (
+              <>
+                <label>手机号<input data-testid="sms-login-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="输入手机号" /></label>
+                <div className="codeRow">
+                  <label>验证码<input data-testid="sms-login-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                  <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+                </div>
+              </>
+            )}
+            {mode === 'register' && (
+              <>
+                <label>用户名<input data-testid="register-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="字母开头，4-20 位" /></label>
+                <label>展示昵称<input data-testid="register-nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="发布和私信中显示的名字" /></label>
+                <label>手机号<input data-testid="register-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于验证码注册" /></label>
+                <div className="codeRow">
+                  <label>验证码<input data-testid="register-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                  <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+                </div>
+                <label>密码<input data-testid="register-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
+              </>
+            )}
+            {mode === 'reset' && (
+              <>
+                <label>手机号<input data-testid="reset-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="输入已注册手机号" /></label>
+                <div className="codeRow">
+                  <label>验证码<input data-testid="reset-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
+                  <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
+                </div>
+                <label>新密码<input data-testid="reset-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
+              </>
+            )}
+            {error && <p className="formError">{error}</p>}
+            {notice && <p className="formNote">{notice}</p>}
+            <button data-testid="account-submit" type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : mode === 'reset' ? '重置并登录' : '登录'}</button>
+          </form>
         </div>
-        <form className="accountForm" onSubmit={submit}>
-          {mode === 'password' && (
-            <>
-              <label>用户名或手机号<input data-testid="password-login-account" value={account} onChange={(event) => setAccount(event.target.value)} placeholder="输入用户名或手机号" /></label>
-              <label>密码<input data-testid="password-login-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="输入密码" /></label>
-              <p className="formNote">超级管理员账号由系统预置，请使用配置的账号和密码登录。</p>
-            </>
-          )}
-          {mode === 'sms' && (
-            <>
-              <label>手机号<input data-testid="sms-login-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="输入手机号" /></label>
-              <div className="codeRow">
-                <label>验证码<input data-testid="sms-login-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
-                <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
-              </div>
-            </>
-          )}
-          {mode === 'register' && (
-            <>
-              <label>用户名<input data-testid="register-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="字母开头，4-20 位" /></label>
-              <label>展示昵称<input data-testid="register-nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="发布和私信中显示的名字" /></label>
-              <label>手机号<input data-testid="register-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于验证码注册" /></label>
-              <div className="codeRow">
-                <label>验证码<input data-testid="register-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>
-                <button data-testid="send-verify-code" type="button" onClick={sendCode} disabled={sending}>{sending ? '发送中' : '获取验证码'}</button>
-              </div>
-              <label>密码<input data-testid="register-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="至少 6 位" /></label>
-            </>
-          )}
-          {error && <p className="formError">{error}</p>}
-          {notice && <p className="formNote">{notice}</p>}
-          <button data-testid="account-submit" type="submit" disabled={busy}>{busy ? '处理中...' : mode === 'register' ? '注册并登录' : '登录'}</button>
-        </form>
       </div>
     </section>
   );
@@ -749,8 +830,8 @@ function CategoriesPage({ loading, categories }: { loading: boolean; categories:
 function GuidePage({ categoryLoading, petLoading, categories, pets, onOpenPet }: { categoryLoading: boolean; petLoading: boolean; categories: Category[]; pets: Pet[]; onOpenPet: (pet: Pet) => void }) {
   const [categoryPage, setCategoryPage] = React.useState(1);
   const [petPage, setPetPage] = React.useState(1);
-  const categoryPageSize = 6;
-  const petPageSize = 6;
+  const categoryPageSize = DEFAULT_PAGE_SIZE;
+  const petPageSize = DEFAULT_PAGE_SIZE;
   const categoryView = paginateItems(categories, categoryPage, categoryPageSize);
   const petView = paginateItems(pets, petPage, petPageSize);
 
@@ -832,7 +913,7 @@ function MarketPage(props: {
   onPublished: () => void;
 }) {
   const [page, setPage] = React.useState(1);
-  const pageView = paginateItems(props.posts, page, 6);
+  const pageView = paginateItems(props.posts, page, DEFAULT_PAGE_SIZE);
 
   React.useEffect(() => setPage(1), [props.posts.length, props.searchQuery, props.categoryFilter, props.cityFilter, props.typeFilter, props.minPrice, props.maxPrice, props.sortMode]);
 
@@ -852,7 +933,7 @@ function MarketPage(props: {
 
 function MomentsPage({ loading, moments, onOpen }: { loading: boolean; moments: Moment[]; onOpen: (moment: Moment) => void }) {
   const [page, setPage] = React.useState(1);
-  const pageView = paginateItems(moments, page, 8);
+  const pageView = paginateItems(moments, page, DEFAULT_PAGE_SIZE);
 
   React.useEffect(() => setPage(1), [moments.length]);
 
@@ -887,7 +968,7 @@ function MinePage(props: {
 
 function FavoritesPage({ currentUser, posts, favoriteIds, onOpen, onToggleFavorite }: { currentUser: UserProfile | null; posts: MarketPost[]; favoriteIds: Set<number>; onOpen: (post: MarketPost) => void; onToggleFavorite: (post: MarketPost) => void }) {
   const [page, setPage] = React.useState(1);
-  const pageView = paginateItems(posts, page, 6);
+  const pageView = paginateItems(posts, page, DEFAULT_PAGE_SIZE);
 
   React.useEffect(() => setPage(1), [posts.length]);
 
@@ -2044,6 +2125,24 @@ function sortByTime<T extends { createdAt?: string }>(items: T[], mode: 'latest'
     const rightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
     return mode === 'latest' ? rightTime - leftTime : leftTime - rightTime;
   });
+}
+
+function sortPostsForDisplay(items: MarketPost[], mode: 'latest' | 'oldest') {
+  return [...items].sort((left, right) => {
+    const priorityDiff = postStatusPriority(left.status) - postStatusPriority(right.status);
+    if (priorityDiff !== 0) return priorityDiff;
+    const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;
+    const rightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
+    return mode === 'latest' ? rightTime - leftTime : leftTime - rightTime;
+  });
+}
+
+function postStatusPriority(status?: string) {
+  if (status === '在售') return 0;
+  if (status === '已预约') return 1;
+  if (status === '已成交') return 2;
+  if (status === '已关闭') return 3;
+  return 4;
 }
 
 function cityOptions(regions: Region[]) {

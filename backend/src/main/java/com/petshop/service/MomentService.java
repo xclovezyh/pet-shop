@@ -7,6 +7,7 @@ import com.petshop.dto.moment.MomentCommentRequest;
 import com.petshop.dto.moment.MomentCommentResponse;
 import com.petshop.dto.moment.MomentRequest;
 import com.petshop.dto.moment.MomentResponse;
+import com.petshop.model.AppUser;
 import com.petshop.model.Moment;
 import com.petshop.model.MomentComment;
 import com.petshop.repository.AppUserRepository;
@@ -59,10 +60,13 @@ public class MomentService {
         return toResponse(findById(id));
     }
 
-    public MomentResponse create(MomentRequest request) {
-        validateCreateOrUpdate(request);
+    public MomentResponse create(AppUser currentUser, MomentRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "发布日常");
+        request.setAuthor(user.getNickname());
+        validateCreateOrUpdate(user, request);
         Moment moment = new Moment();
         copyFields(moment, request);
+        moment.setAuthorUserId(user.getId());
         moment.setCreatedAt(LocalDateTime.now());
         moment.setLikes(0);
         moment.setAuditStatus(AUDIT_APPROVED);
@@ -82,12 +86,9 @@ public class MomentService {
                 .collect(Collectors.toList());
     }
 
-    public MomentCommentResponse createComment(Long id, MomentCommentRequest request) {
+    public MomentCommentResponse createComment(Long id, AppUser currentUser, MomentCommentRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "评论");
         findById(id);
-        if (isBlank(request.getAuthor())) {
-            throw new ApiException(ApiErrorCode.UNAUTHORIZED, "请先登录后再评论");
-        }
-        UserGuard.requireActive(users, request.getAuthor(), "评论");
         if (isBlank(request.getContent())) {
             throw new ApiException(ApiErrorCode.MOMENT_COMMENT_EMPTY);
         }
@@ -95,29 +96,33 @@ public class MomentService {
 
         MomentComment comment = new MomentComment();
         comment.setMomentId(id);
-        comment.setAuthor(request.getAuthor());
+        comment.setAuthor(user.getNickname());
+        comment.setAuthorUserId(user.getId());
         comment.setContent(request.getContent().trim());
         comment.setCreatedAt(LocalDateTime.now());
         return toCommentResponse(comments.save(comment));
     }
 
-    public void delete(Long id, String author) {
+    public void delete(Long id, AppUser currentUser) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "删除日常");
         Moment moment = findById(id);
-        if (!safe(moment.getAuthor()).equals(author)) {
+        if (!ownsMoment(moment, user)) {
             throw new ApiException(ApiErrorCode.MOMENT_AUTHOR_MISMATCH, "只能删除自己的日常");
         }
-        UserGuard.requireActive(users, author, "删除日常");
         moments.delete(moment);
     }
 
-    public MomentResponse update(Long id, String author, MomentRequest request) {
+    public MomentResponse update(Long id, AppUser currentUser, MomentRequest request) {
+        AppUser user = UserGuard.requireAuthenticated(currentUser, "编辑日常");
         Moment existing = findById(id);
-        if (!safe(existing.getAuthor()).equals(author)) {
+        if (!ownsMoment(existing, user)) {
             throw new ApiException(ApiErrorCode.MOMENT_AUTHOR_MISMATCH, "只能编辑自己的日常");
         }
-        UserGuard.requireActive(users, author, "编辑日常");
-        validateCreateOrUpdate(request);
+        request.setAuthor(user.getNickname());
+        validateCreateOrUpdate(user, request);
 
+        existing.setAuthor(user.getNickname());
+        existing.setAuthorUserId(user.getId());
         existing.setPetName(request.getPetName());
         existing.setCategory(request.getCategory());
         existing.setCity(request.getCity());
@@ -140,11 +145,10 @@ public class MomentService {
         return toResponse(moments.save(moment));
     }
 
-    private void validateCreateOrUpdate(MomentRequest request) {
-        if (isBlank(request.getAuthor())) {
+    private void validateCreateOrUpdate(AppUser user, MomentRequest request) {
+        if (user == null || user.getId() == null || isBlank(request.getAuthor())) {
             throw new ApiException(ApiErrorCode.UNAUTHORIZED, "请先登录后再发布");
         }
-        UserGuard.requireActive(users, request.getAuthor(), "发布日常");
         if (isBlank(request.getCategory())) {
             throw new ApiException(ApiErrorCode.MOMENT_CATEGORY_REQUIRED);
         }
@@ -199,5 +203,12 @@ public class MomentService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private boolean ownsMoment(Moment moment, AppUser user) {
+        if (moment.getAuthorUserId() != null && user.getId() != null) {
+            return moment.getAuthorUserId().equals(user.getId());
+        }
+        return safe(moment.getAuthor()).equals(user.getNickname());
     }
 }

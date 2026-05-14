@@ -11,4 +11,10 @@ public interface TradeIntentRepository extends JpaRepository<TradeIntent, Long> 
     List<TradeIntent> findByOwnerOrderByUpdatedAtDesc(String owner);
 
     boolean existsByPostIdAndRequester(Long postId, String requester);
+
+    List<TradeIntent> findByRequesterUserIdOrderByUpdatedAtDesc(Long requesterUserId);
+
+    List<TradeIntent> findByOwnerUserIdOrderByUpdatedAtDesc(Long ownerUserId);
+
+    boolean existsByPostIdAndRequesterUserId(Long postId, Long requesterUserId);
 }

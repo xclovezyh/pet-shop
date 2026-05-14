@@ -31,15 +31,14 @@ public class TradeIntentController {
     public ApiResponse<List<TradeIntentResponse>> list(@CurrentUser AppUser currentUser,
                                                        @RequestParam(defaultValue = "requester") String role) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "查看交易意向");
-        return ApiResponse.success(tradeIntentService.list(user.getNickname(), role));
+        return ApiResponse.success(tradeIntentService.list(user, role));
     }
 
     @PostMapping
     public ApiResponse<TradeIntentResponse> create(@CurrentUser AppUser currentUser,
                                                    @RequestBody TradeIntentCreateRequest request) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "提交交易意向");
-        request.setRequester(user.getNickname());
-        return ApiResponse.success("交易意向已提交", tradeIntentService.create(request));
+        return ApiResponse.success("交易意向已提交", tradeIntentService.create(user, request));
     }
 
     @PutMapping("/{id}/status")
@@ -47,6 +46,6 @@ public class TradeIntentController {
                                                          @CurrentUser AppUser currentUser,
                                                          @RequestParam String status) {
         AppUser user = UserGuard.requireAuthenticated(currentUser, "处理交易意向");
-        return ApiResponse.success("交易意向状态已更新", tradeIntentService.updateStatus(id, user.getNickname(), status));
+        return ApiResponse.success("交易意向状态已更新", tradeIntentService.updateStatus(id, user, status));
     }
 }

@@ -19,6 +19,7 @@ import { readApiData, readError } from './api';
 
 const API_BASE = '/api/admin';
 const ADMIN_STORAGE_KEY = 'petshop_admin_session';
+const DEFAULT_PAGE_SIZE = 10;
 
 type AdminPermissionCode =
   | 'USER_MODERATE'
@@ -61,12 +62,12 @@ type PageResult<T> = {
 };
 
 const TAB_PAGE_SIZES: Record<Exclude<TabKey, 'regions'>, number> = {
-  accounts: 6,
-  users: 8,
-  reports: 8,
-  posts: 6,
-  moments: 6,
-  categories: 8
+  accounts: DEFAULT_PAGE_SIZE,
+  users: DEFAULT_PAGE_SIZE,
+  reports: DEFAULT_PAGE_SIZE,
+  posts: DEFAULT_PAGE_SIZE,
+  moments: DEFAULT_PAGE_SIZE,
+  categories: DEFAULT_PAGE_SIZE
 };
 
 const FALLBACK_PERMISSION_OPTIONS: PermissionOption[] = [

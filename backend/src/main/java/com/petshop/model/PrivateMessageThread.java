@@ -29,8 +29,12 @@ public class PrivateMessageThread {
     private String postTitle;
     /** 发起人昵称。 */
     private String starter;
+    /** 发起人用户ID，关联 app_user.id。 */
+    private Long starterUserId;
     /** 接收人昵称。 */
     private String recipient;
+    /** 接收人用户ID，关联 app_user.id。 */
+    private Long recipientUserId;
     /** 会话创建时间。 */
     private LocalDateTime createdAt;
     /** 最近消息时间。 */

@@ -8,6 +8,7 @@ import com.petshop.dto.user.AuthSessionResponse;
 import com.petshop.dto.user.RegisterUserRequest;
 import com.petshop.dto.user.UserResponse;
 import com.petshop.service.AdminSessionService;
+import com.petshop.service.UserJwtService;
 import com.petshop.service.UserService;
 import com.petshop.service.UserSessionService;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ class UserControllerTest {
     private UserSessionService userSessionService;
 
     @MockBean
+    private UserJwtService userJwtService;
+
+    @MockBean
     private AdminSessionService adminSessionService;
 
     @Test
@@ -56,7 +60,7 @@ class UserControllerTest {
 
         RegisterUserRequest request = new RegisterUserRequest();
         request.setUsername("alice123");
-        request.setPassword("secret123");
+        request.setPassword("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
         request.setPhone("13800138000");
         request.setNickname("alice");
         request.setCode("123456");
@@ -78,7 +82,7 @@ class UserControllerTest {
 
         RegisterUserRequest request = new RegisterUserRequest();
         request.setUsername("alice123");
-        request.setPassword("secret123");
+        request.setPassword("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
         request.setPhone("13800138000");
         request.setNickname("alice");
         request.setCode("123456");
