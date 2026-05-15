@@ -38,26 +38,17 @@ public class DataSeeder {
             seedReferenceData(referenceOptions);
 
             if (pets.count() == 0) {
-                pets.save(pet("团子", "猫咪", "英短银渐层", "8个月", "上海市 上海市 浦东新区", "在售", "疫苗齐全，已驱虫", "安静亲人，喜欢陪睡", new BigDecimal("1800")));
-                pets.save(pet("可乐", "狗狗", "柯基", "1岁", "浙江省 杭州市 西湖区", "可互换", "体检正常，精力充沛", "活泼黏人，会坐下握手", BigDecimal.ZERO));
-                pets.save(pet("雪球", "小宠", "侏儒兔", "5个月", "江苏省 南京市 玄武区", "可领养", "健康，饮食稳定", "胆小但熟悉后很亲近", BigDecimal.ZERO));
-                pets.save(pet("蓝宝", "鸟类", "虎皮鹦鹉", "7个月", "广东省 深圳市 南山区", "可领养", "羽毛状态良好，已适应手养", "好奇心强，会简单互动", BigDecimal.ZERO));
-                pets.save(pet("小龟", "爬宠", "草龟", "2岁", "四川省 成都市 武侯区", "在售", "进食稳定，背甲完整", "安静耐看，适合有温控设备家庭", new BigDecimal("120")));
+                seedLaunchPets(pets);
             }
 
             enrichPetProfiles(pets);
 
             if (posts.count() == 0) {
-                posts.save(post("想给柯基找同城互换寄养伙伴", "互换", "狗狗", "浙江省 杭州市 西湖区", "工作日偶尔出差，希望找同城稳定互助家庭。"));
-                posts.save(post("英短银渐层找新家", "售卖", "猫咪", "上海市 上海市 浦东新区", "自家猫宝宝，疫苗驱虫记录完整，可预约看猫。"));
-                posts.save(post("闲置猫爬架转让", "闲置", "用品", "江苏省 苏州市 姑苏区", "九成新，适合小户型，支持站内私信沟通。"));
-                posts.save(post("寻宠互助：橘猫走失", "寻宠", "猫咪", "湖北省 武汉市 武昌区", "橘猫亲人，戴蓝色项圈，希望附近用户帮忙留意。"));
+                seedLaunchPosts(posts);
             }
 
             if (moments.count() == 0) {
-                moments.save(moment("林小满", "团子", "猫咪", "今天第一次学会自己开零食罐，已经开始怀疑家里的安全系统。", 28));
-                moments.save(moment("阿舟", "可乐", "狗狗", "雨停后去公园跑了两圈，回来直接睡成一张毯子。", 16));
-                moments.save(moment("南栀", "蓝宝", "鸟类", "蓝宝今天终于愿意站上手指，奖励了最喜欢的小米穗。", 12));
+                seedLaunchMoments(moments);
             }
         };
     }
@@ -116,6 +107,93 @@ public class DataSeeder {
             option.setLabel(label);
             option.setSortOrder(sortOrder);
             repository.save(option);
+        }
+    }
+
+    private void seedLaunchPets(PetRepository pets) {
+        String[][] profiles = {
+                {"猫咪", "英短银渐层", "疫苗齐全，已驱虫", "安静亲人，适合公寓陪伴"},
+                {"狗狗", "柯基", "体检正常，精力充沛", "活泼黏人，会基础指令"},
+                {"小宠", "侏儒兔", "饮食稳定，笼舍干净", "胆小但熟悉后亲近"},
+                {"水族", "孔雀鱼", "水质稳定，状态活跃", "观赏性强，适合安静角落"},
+                {"鸟类", "虎皮鹦鹉", "羽毛状态良好，已适应手养", "好奇心强，会简单互动"},
+                {"爬宠", "草龟", "进食稳定，背甲完整", "安静耐看，需要温控"},
+                {"异宠", "蜜袋鼯", "精神状态稳定，夜间活跃", "需要经验家庭和固定互动"},
+                {"用品", "猫爬架", "九成新，结构稳固", "适合小户型，支持自提"}
+        };
+        String[] cities = {
+                "上海市 上海市 浦东新区",
+                "浙江省 杭州市 西湖区",
+                "江苏省 南京市 玄武区",
+                "广东省 深圳市 南山区",
+                "四川省 成都市 武侯区",
+                "湖北省 武汉市 武昌区"
+        };
+        String[] names = {"团子", "可乐", "雪球", "蓝宝", "小满", "栗子", "奶盖", "豆包"};
+        String[] statuses = {"在售", "可领养", "可互换", "已预订", "暂不开放", "在售"};
+
+        for (int i = 0; i < profiles.length; i++) {
+            for (int j = 0; j < cities.length; j++) {
+                String[] profile = profiles[i];
+                String name = names[(i + j) % names.length] + categorySuffix(profile[0], j);
+                String age = ageFor(profile[0], j);
+                BigDecimal price = priceFor(profile[0], statuses[j]);
+                pets.save(pet(name, profile[0], profile[1], age, cities[j], statuses[j], profile[2], profile[3], price));
+            }
+        }
+    }
+
+    private void seedLaunchPosts(MarketPostRepository posts) {
+        String[] types = {"售卖", "领养", "互换", "闲置", "求助", "寄养", "寻宠", "相亲配种"};
+        String[] categories = {"猫咪", "狗狗", "小宠", "水族", "鸟类", "爬宠", "异宠", "用品"};
+        String[] cities = {
+                "上海市 上海市 浦东新区",
+                "浙江省 杭州市 西湖区",
+                "江苏省 苏州市 姑苏区",
+                "广东省 深圳市 南山区",
+                "四川省 成都市 武侯区",
+                "湖北省 武汉市 武昌区",
+                "北京市 北京市 朝阳区",
+                "重庆市 重庆市 渝中区"
+        };
+        for (int i = 0; i < categories.length; i++) {
+            for (int j = 0; j < types.length; j++) {
+                String category = categories[i];
+                String type = types[j];
+                posts.save(post(postTitle(type, category, i + j), type, category, cities[(i + j) % cities.length],
+                        postDescription(type, category, cities[(i + j) % cities.length])));
+            }
+        }
+    }
+
+    private void seedLaunchMoments(MomentRepository moments) {
+        String[] authors = {"林小满", "阿舟", "南栀", "橙子妈", "周予安", "闻星", "小北", "若竹"};
+        String[] categories = {"猫咪", "狗狗", "小宠", "水族", "鸟类", "爬宠", "异宠", "用品"};
+        String[] petNames = {"团子", "可乐", "雪球", "蓝宝", "栗子", "奶盖", "豆包", "小满"};
+        String[] fragments = {
+                "今天状态很好，主动靠近镜头，拍照时一点也不紧张。",
+                "新环境适应得比预期快，吃饭、喝水和休息都很规律。",
+                "刚做完清洁和整理，生活区舒服了很多，看起来也更放松。",
+                "第一次和邻居家的小伙伴见面，保持了礼貌距离但很好奇。",
+                "晚上互动时间明显更积极，最喜欢的小零食依然很有用。",
+                "记录一下成长变化，毛色、精神和胃口都保持得不错。"
+        };
+        String[] cities = {
+                "上海市 上海市 浦东新区",
+                "浙江省 杭州市 西湖区",
+                "江苏省 南京市 玄武区",
+                "广东省 深圳市 南山区",
+                "四川省 成都市 武侯区",
+                "湖北省 武汉市 武昌区"
+        };
+
+        for (int i = 0; i < categories.length; i++) {
+            for (int j = 0; j < fragments.length; j++) {
+                Moment moment = moment(authors[(i + j) % authors.length], petNames[(i * 2 + j) % petNames.length],
+                        categories[i], fragments[j], 8 + i * 5 + j);
+                moment.setCity(cities[j % cities.length]);
+                moments.save(moment);
+            }
         }
     }
 
@@ -199,6 +277,7 @@ public class DataSeeder {
         post.setAuthor("示例用户");
         post.setContact("站内私信");
         post.setStatus("在售");
+        post.setPrice(priceFor(category, type));
         String[] images = postImages(category, type);
         post.setImageUrl(firstImage(images));
         post.setImageUrls(String.join(",", images));
@@ -219,6 +298,85 @@ public class DataSeeder {
         moment.setImageUrls(String.join(",", images));
         moment.setCreatedAt(LocalDateTime.now());
         return moment;
+    }
+
+    private String categorySuffix(String category, int index) {
+        String[] suffixes = {"一号", "二号", "三号", "四号", "五号", "六号"};
+        if ("用品".equals(category)) {
+            return "装备" + suffixes[index % suffixes.length];
+        }
+        if ("水族".equals(category)) {
+            return "鱼" + suffixes[index % suffixes.length];
+        }
+        return suffixes[index % suffixes.length];
+    }
+
+    private String ageFor(String category, int index) {
+        if ("用品".equals(category)) {
+            return "使用" + (index + 1) + "个月";
+        }
+        if ("水族".equals(category)) {
+            return (index + 3) + "个月";
+        }
+        if ("爬宠".equals(category) || "异宠".equals(category)) {
+            return (index + 1) + "岁";
+        }
+        return (index + 5) + "个月";
+    }
+
+    private BigDecimal priceFor(String category, String statusOrType) {
+        if ("可领养".equals(statusOrType) || "领养".equals(statusOrType) || "互换".equals(statusOrType) || "求助".equals(statusOrType) || "寻宠".equals(statusOrType)) {
+            return BigDecimal.ZERO;
+        }
+        if ("用品".equals(category)) {
+            return new BigDecimal("168");
+        }
+        if ("水族".equals(category) || "小宠".equals(category)) {
+            return new BigDecimal("88");
+        }
+        if ("爬宠".equals(category)) {
+            return new BigDecimal("128");
+        }
+        if ("异宠".equals(category)) {
+            return new BigDecimal("680");
+        }
+        if ("狗狗".equals(category)) {
+            return new BigDecimal("1200");
+        }
+        return new BigDecimal("980");
+    }
+
+    private String postTitle(String type, String category, int offset) {
+        if ("寻宠".equals(type)) {
+            return "寻宠互助：" + category + "走失线索征集";
+        }
+        if ("寄养".equals(type)) {
+            return category + "同城短期寄养互助";
+        }
+        if ("闲置".equals(type)) {
+            return category + "相关用品闲置转让";
+        }
+        if ("相亲配种".equals(type)) {
+            return category + "健康档案齐全，寻找合适伙伴";
+        }
+        String[] prefixes = {"靠谱同城", "家庭自养", "周末可看", "资料齐全"};
+        return prefixes[offset % prefixes.length] + category + type + "信息";
+    }
+
+    private String postDescription(String type, String category, String city) {
+        if ("求助".equals(type)) {
+            return city + "附近需要有经验的朋友提供照护建议，优先站内私信沟通。";
+        }
+        if ("寻宠".equals(type)) {
+            return city + "附近走失，性格亲人，已整理照片和特征，希望同城用户帮忙留意。";
+        }
+        if ("寄养".equals(type)) {
+            return "短期出差需要寄养互助，希望对方有稳定住所和基础照护经验。";
+        }
+        if ("闲置".equals(type)) {
+            return "自用闲置，清洁后保存良好，适合同城自提，细节可站内私信。";
+        }
+        return "家庭自养" + category + "相关信息，健康记录清晰，支持先沟通再线下确认。";
     }
 
     private String[] petImages(String category, String name) {
