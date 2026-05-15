@@ -4,6 +4,7 @@ import com.petshop.api.ApiResponse;
 import com.petshop.dto.admin.AdminActionLogResponse;
 import com.petshop.dto.admin.AdminAuthSessionResponse;
 import com.petshop.dto.admin.AdminCreateRequest;
+import com.petshop.dto.admin.AdminDisplayNameUpdateRequest;
 import com.petshop.dto.admin.AdminPermissionUpdateRequest;
 import com.petshop.dto.admin.AdminUserResponse;
 import com.petshop.dto.common.PageResponse;
@@ -110,6 +111,25 @@ class AdminControllerTest {
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getData()).isSameAs(userResponse);
         verify(adminActionLogService).record("root", "USER_BLACKLIST", "USER", 8L, "多次发布违规内容");
+    }
+
+    @Test
+    void updateAdminDisplayNameShouldRecordAdminAction() {
+        AdminUser admin = superAdmin();
+        AdminUserResponse adminResponse = new AdminUserResponse();
+        adminResponse.setId(9L);
+        adminResponse.setDisplayName("审核管理员");
+
+        when(adminAuthService.updateDisplayName(9L, "审核管理员")).thenReturn(adminResponse);
+
+        AdminDisplayNameUpdateRequest request = new AdminDisplayNameUpdateRequest();
+        request.setDisplayName("审核管理员");
+
+        ApiResponse<AdminUserResponse> response = controller.updateAdminDisplayName(9L, admin, request);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData()).isSameAs(adminResponse);
+        verify(adminActionLogService).record("root", "ADMIN_DISPLAY_NAME_UPDATE", "ADMIN", 9L, "审核管理员");
     }
 
     private AdminUser superAdmin() {

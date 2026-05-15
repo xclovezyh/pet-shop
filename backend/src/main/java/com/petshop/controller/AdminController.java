@@ -4,6 +4,7 @@ import com.petshop.api.ApiResponse;
 import com.petshop.dto.admin.AdminAuthSessionResponse;
 import com.petshop.dto.admin.AdminActionLogResponse;
 import com.petshop.dto.admin.AdminCreateRequest;
+import com.petshop.dto.admin.AdminDisplayNameUpdateRequest;
 import com.petshop.dto.admin.AdminLoginRequest;
 import com.petshop.dto.admin.AdminPermissionOptionResponse;
 import com.petshop.dto.admin.AdminPermissionUpdateRequest;
@@ -125,6 +126,17 @@ public class AdminController {
         AdminUserResponse response = adminAuthService.updateStatus(id, enabled, currentAdmin);
         recordAdminAction(currentAdmin, "ADMIN_STATUS_UPDATE", "ADMIN", id, "enabled=" + enabled);
         return ApiResponse.success("管理员状态已更新", response);
+    }
+
+    @PutMapping("/accounts/{id}/display-name")
+    public ApiResponse<AdminUserResponse> updateAdminDisplayName(@PathVariable Long id,
+                                                                 @CurrentAdmin AdminUser adminUser,
+                                                                 @RequestBody(required = false) AdminDisplayNameUpdateRequest request) {
+        AdminUser currentAdmin = AdminGuard.requireSuperAdmin(adminUser, "修改管理员显示名");
+        String displayName = request == null ? "" : request.getDisplayName();
+        AdminUserResponse response = adminAuthService.updateDisplayName(id, displayName);
+        recordAdminAction(currentAdmin, "ADMIN_DISPLAY_NAME_UPDATE", "ADMIN", id, response.getDisplayName());
+        return ApiResponse.success("管理员显示名已更新", response);
     }
 
     @PutMapping("/accounts/{id}/permissions")

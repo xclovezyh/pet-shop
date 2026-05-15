@@ -125,11 +125,8 @@ type Moment = {
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type PostFavorite = { id: number; userId: number; userNickname?: string; postId: number; createdAt: string; post?: MarketPost };
 type TradeIntent = { id: number; postId: number; postTitle: string; requester: string; owner: string; message: string; status: string; createdAt: string; updatedAt: string; post?: MarketPost };
-type ContentReport = { id: number; targetType: 'post' | 'moment'; targetId: number; reporter: string; reason: string; status: string; createdAt: string; handledBy?: string; handledAt?: string; handleNote?: string };
-type RegionArea = { id: number; name: string; level: 'province' | 'city' | 'district'; parentId?: number; sortOrder?: number };
 type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
 type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'account';
-type AdminTab = 'reports' | 'users' | 'posts' | 'moments' | 'categories' | 'regions';
 type VerifyCodeResponse = { phone: string; code?: string; expireSeconds: number; message: string };
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
 type MessageThread = { id: number; postId: number; peer: string; postTitle: string; unreadCount: number; messages: MessageItem[] };
@@ -662,7 +659,6 @@ function AccountPage({ currentUser, onLogin, onProfile }: { currentUser: UserPro
                 <h3>{currentUser.nickname}</h3>
                 <p>{currentUser.username ? `用户名：${currentUser.username}` : '已登录账号'}</p>
                 {currentUser.phone && <p>手机号：{maskPhone(currentUser.phone)}</p>}
-                {isSuperAdmin(currentUser) && <strong>超级管理员</strong>}
               </div>
             </div>
             <div className="accountQuickList">
@@ -1000,253 +996,6 @@ function ProfilePage(props: { currentUser: UserProfile | null; referenceData: Re
       <SectionTitle icon={<User />} title="个人主页" helper="维护头像、简介、常驻城市，并集中进入收藏和私信" />
       <ProfilePanel {...props} />
     </section>
-  );
-}
-
-function AdminPage({ currentUser, onOpen, onChanged }: { currentUser: UserProfile | null; onOpen: (detail: { type: 'post' | 'moment' | 'pet'; item: MarketPost | Moment | Pet }) => void; onChanged: () => void }) {
-  const [tab, setTab] = React.useState<AdminTab>('reports');
-  const [users, setUsers] = React.useState<UserProfile[]>([]);
-  const [reports, setReports] = React.useState<ContentReport[]>([]);
-  const [posts, setPosts] = React.useState<MarketPost[]>([]);
-  const [moments, setMoments] = React.useState<Moment[]>([]);
-  const [categories, setCategories] = React.useState<Category[]>([]);
-  const [regionAreas, setRegionAreas] = React.useState<RegionArea[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [notice, setNotice] = React.useState('');
-  const adminName = currentUser?.nickname || '';
-  const adminQuery = `admin=${encodeURIComponent(adminName)}`;
-
-  const load = React.useCallback(() => {
-    if (!isSuperAdmin(currentUser)) return;
-    setLoading(true);
-    Promise.all([
-      fetch(`${API_BASE}/users?${adminQuery}`).then((res) => res.ok ? readApiData<UserProfile[]>(res) : []),
-      fetch(`${API_BASE}/reports/admin?${adminQuery}`).then((res) => res.ok ? readApiData<ContentReport[]>(res) : []),
-      fetch(`${API_BASE}/posts/admin?${adminQuery}`).then((res) => res.ok ? readApiData<MarketPost[]>(res) : []),
-      fetch(`${API_BASE}/moments/admin?${adminQuery}`).then((res) => res.ok ? readApiData<Moment[]>(res) : []),
-      fetch(`${API_BASE}/categories`).then((res) => res.ok ? readApiData<Category[]>(res) : []),
-      fetch(`${API_BASE}/reference-data/regions/admin?${adminQuery}`).then((res) => res.ok ? readApiData<RegionArea[]>(res) : [])
-    ])
-      .then(([nextUsers, nextReports, nextPosts, nextMoments, nextCategories, nextRegions]) => {
-        setUsers(nextUsers);
-        setReports(nextReports);
-        setPosts(nextPosts);
-        setMoments(nextMoments);
-        setCategories(nextCategories);
-        setRegionAreas(nextRegions);
-      })
-      .catch(() => setNotice('管理数据加载失败，请确认后端服务已启动。'))
-      .finally(() => setLoading(false));
-  }, [currentUser, adminQuery]);
-
-  React.useEffect(load, [load]);
-
-  if (!currentUser) {
-    return <section className="page section"><EmptyState title="登录后进入管理后台" helper="请使用超级管理员账号和管理员口令登录。" /></section>;
-  }
-  if (!isSuperAdmin(currentUser)) {
-    return <section className="page section"><EmptyState title="无权访问管理后台" helper="普通用户只能管理自己的发布、收藏和私信。" /></section>;
-  }
-  const operator = currentUser.nickname;
-
-  async function updateUser(user: UserProfile, blocked: boolean) {
-    const reason = encodeURIComponent(blocked ? '管理员处理违规行为' : '');
-    const res = await fetch(`${API_BASE}/users/${user.id}/${blocked ? 'blacklist' : 'unblacklist'}?admin=${encodeURIComponent(operator)}${blocked ? `&reason=${reason}` : ''}`, { method: 'PUT' });
-    setNotice(res.ok ? (blocked ? '用户已拉黑' : '用户已解除限制') : await readError(res));
-    load();
-  }
-
-  async function updateRole(user: UserProfile, role: 'USER' | 'SUPER_ADMIN') {
-    const res = await fetch(`${API_BASE}/users/${user.id}/role?admin=${encodeURIComponent(operator)}&role=${encodeURIComponent(role)}`, { method: 'PUT' });
-    setNotice(res.ok ? (role === 'SUPER_ADMIN' ? '已设为管理员' : '已取消管理员权限') : await readError(res));
-    load();
-  }
-
-  async function audit(kind: 'posts' | 'moments', id: number, status: string) {
-    const res = await fetch(`${API_BASE}/${kind}/${id}/audit?admin=${encodeURIComponent(operator)}&status=${encodeURIComponent(status)}`, { method: 'PUT' });
-    setNotice(res.ok ? `内容已${status}` : await readError(res));
-    load();
-    onChanged();
-  }
-
-  async function handleReport(report: ContentReport, action: string) {
-    const params = new URLSearchParams({ operator });
-    const res = await fetch(`${API_BASE}/reports/${report.id}/handle?${params.toString()}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: '已处理',
-        action,
-        note: action.includes('Block') ? '举报处理后限制作者' : '举报处理完成'
-      })
-    });
-    setNotice(res.ok ? '举报已处理' : await readError(res));
-    load();
-    onChanged();
-  }
-
-  async function saveCategory(category?: Category) {
-    const name = window.prompt('分类名称', category?.name || '');
-    if (!name?.trim()) return;
-    const description = window.prompt('分类描述', category?.description || '') || '';
-    const tags = window.prompt('标签，使用逗号分隔', category?.tags || '') || '';
-    const res = await fetch(`${API_BASE}/categories${category ? `/${category.id}` : ''}?admin=${encodeURIComponent(operator)}`, {
-      method: category ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, tags, imageUrl: '' })
-    });
-    setNotice(res.ok ? '分类已保存' : await readError(res));
-    load();
-  }
-
-  async function deleteCategory(category: Category) {
-    if (!window.confirm(`确认删除分类「${category.name}」吗？`)) return;
-    const res = await fetch(`${API_BASE}/categories/${category.id}?admin=${encodeURIComponent(operator)}`, { method: 'DELETE' });
-    setNotice(res.ok ? '分类已删除' : await readError(res));
-    load();
-  }
-
-  async function saveRegion(level: RegionArea['level'], parentId?: number, region?: RegionArea) {
-    const name = window.prompt(region ? '修改地区名称' : '新增地区名称', region?.name || '');
-    if (!name?.trim()) return;
-    const res = await fetch(`${API_BASE}/reference-data/regions${region ? `/${region.id}` : ''}?admin=${encodeURIComponent(operator)}`, {
-      method: region ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, level, parentId, sortOrder: region?.sortOrder })
-    });
-    setNotice(res.ok ? '地区已保存' : await readError(res));
-    load();
-  }
-
-  async function deleteRegion(region: RegionArea) {
-    if (!window.confirm(`确认删除地区「${region.name}」及其下级地区吗？`)) return;
-    const res = await fetch(`${API_BASE}/reference-data/regions/${region.id}?admin=${encodeURIComponent(operator)}`, { method: 'DELETE' });
-    setNotice(res.ok ? '地区已删除' : await readError(res));
-    load();
-  }
-
-  const provinces = regionAreas.filter((region) => region.level === 'province');
-
-  return (
-    <section className="page section">
-      <SectionTitle icon={<ShieldCheck />} title="管理后台" helper="集中处理举报、审核内容和限制违规用户" />
-      {loading && <LoadingState label="正在加载管理数据" />}
-      {notice && <p className="formNote adminNotice">{notice}</p>}
-      <div className="adminTabs">
-        <button type="button" className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}>举报处理 <span>{reports.length}</span></button>
-        <button type="button" className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>用户管理 <span>{users.length}</span></button>
-        <button type="button" className={tab === 'posts' ? 'active' : ''} onClick={() => setTab('posts')}>帖子审核 <span>{posts.length}</span></button>
-        <button type="button" className={tab === 'moments' ? 'active' : ''} onClick={() => setTab('moments')}>日常审核 <span>{moments.length}</span></button>
-        <button type="button" className={tab === 'categories' ? 'active' : ''} onClick={() => setTab('categories')}>分类管理 <span>{categories.length}</span></button>
-        <button type="button" className={tab === 'regions' ? 'active' : ''} onClick={() => setTab('regions')}>地区库 <span>{provinces.length}</span></button>
-      </div>
-      <div className="adminGrid">
-        {tab === 'reports' && <AdminPanel title="举报处理">
-          {reports.length ? reports.map((report) => (
-            <article className="adminItem" key={report.id}>
-              <div className="between"><strong>{report.targetType === 'post' ? '交易帖举报' : '日常举报'} #{report.targetId}</strong><span className={`intentStatus ${report.status === '待处理' ? 'pending' : 'accepted'}`}>{report.status}</span></div>
-              <p>{report.reason}</p>
-              <div className="intentMeta"><span>举报人 {report.reporter}</span><span>{formatTime(report.createdAt)}</span></div>
-              <div className="intentActions">
-                <button type="button" onClick={() => handleReport(report, 'removeTarget')}>下架内容</button>
-                <button type="button" onClick={() => handleReport(report, 'removeAndBlockAuthor')}>下架并拉黑作者</button>
-                <button type="button" onClick={() => handleReport(report, 'none')}>仅标记处理</button>
-              </div>
-            </article>
-          )) : <p className="emptyState">暂无举报记录。</p>}
-        </AdminPanel>}
-        {tab === 'users' && <AdminPanel title="用户管理">
-          {users.map((user) => (
-            <article className="adminItem compact" key={user.id}>
-              <div><strong>{user.nickname}</strong><p>{user.username ? `用户名 ${user.username}` : '未设置用户名'} · {user.city || '未设置城市'}</p></div>
-              <span className={isSuperAdmin(user) ? 'auditBadge accepted' : user.blacklisted ? 'auditBadge removed' : 'auditBadge'}>{isSuperAdmin(user) ? '管理员' : user.blacklisted ? '已限制' : '普通用户'}</span>
-              <button type="button" onClick={() => updateUser(user, !user.blacklisted)} disabled={isSuperAdmin(user)}>{user.blacklisted ? '解除限制' : '拉黑'}</button>
-              <button type="button" onClick={() => updateRole(user, isSuperAdmin(user) ? 'USER' : 'SUPER_ADMIN')} disabled={user.nickname === operator}>{isSuperAdmin(user) ? '取消管理员' : '设为管理员'}</button>
-            </article>
-          ))}
-        </AdminPanel>}
-        {tab === 'posts' && <AdminPanel title="帖子审核">
-          {posts.map((post) => (
-            <article className="adminItem" key={post.id}>
-              <div className="between"><strong>{post.title}</strong><AuditBadge value={post.auditStatus} /></div>
-              <p>{post.description}</p>
-              <div className="intentMeta"><span>{post.author}</span><span>{post.category}</span><span>{formatTime(post.createdAt || '')}</span></div>
-              <div className="intentActions">
-                <button type="button" onClick={() => onOpen({ type: 'post', item: post })}>查看</button>
-                <button type="button" onClick={() => audit('posts', post.id, '审核通过')}>恢复展示</button>
-                <button type="button" onClick={() => audit('posts', post.id, '已下架')}>下架</button>
-              </div>
-            </article>
-          ))}
-        </AdminPanel>}
-        {tab === 'moments' && <AdminPanel title="日常审核">
-          {moments.map((moment) => (
-            <article className="adminItem" key={moment.id}>
-              <div className="between"><strong>{moment.petName} 的日常</strong><AuditBadge value={moment.auditStatus} /></div>
-              <p>{moment.content}</p>
-              <div className="intentMeta"><span>{moment.author}</span><span>{moment.category || '日常'}</span><span>{formatTime(moment.createdAt || '')}</span></div>
-              <div className="intentActions">
-                <button type="button" onClick={() => onOpen({ type: 'moment', item: moment })}>查看</button>
-                <button type="button" onClick={() => audit('moments', moment.id, '审核通过')}>恢复展示</button>
-                <button type="button" onClick={() => audit('moments', moment.id, '已下架')}>下架</button>
-              </div>
-            </article>
-          ))}
-        </AdminPanel>}
-        {tab === 'categories' && <AdminPanel title="分类管理">
-          <div className="intentActions"><button type="button" onClick={() => saveCategory()}>新增分类</button></div>
-          {categories.map((category) => (
-            <article className="adminItem" key={category.id}>
-              <div className="between"><strong>{category.name}</strong><span className="auditBadge">{category.tags || '未设置标签'}</span></div>
-              <p>{category.description}</p>
-              <div className="intentActions">
-                <button type="button" onClick={() => saveCategory(category)}>编辑</button>
-                <button type="button" onClick={() => deleteCategory(category)}>删除</button>
-              </div>
-            </article>
-          ))}
-        </AdminPanel>}
-        {tab === 'regions' && <AdminPanel title="地区库管理">
-          <div className="intentActions"><button type="button" onClick={() => saveRegion('province')}>新增省份</button></div>
-          {provinces.map((province) => (
-            <article className="adminItem" key={province.id}>
-              <div className="between"><strong>{province.name}</strong><span className="auditBadge">省份</span></div>
-              <RegionChildren regions={regionAreas} parent={province} onSave={saveRegion} onDelete={deleteRegion} />
-              <div className="intentActions">
-                <button type="button" onClick={() => saveRegion('city', province.id)}>新增城市</button>
-                <button type="button" onClick={() => saveRegion('province', undefined, province)}>编辑省份</button>
-                <button type="button" onClick={() => deleteRegion(province)}>删除省份</button>
-              </div>
-            </article>
-          ))}
-        </AdminPanel>}
-      </div>
-    </section>
-  );
-}
-
-function AdminPanel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="adminPanel"><h3>{title}</h3>{children}</div>;
-}
-
-function RegionChildren({ regions, parent, onSave, onDelete }: { regions: RegionArea[]; parent: RegionArea; onSave: (level: RegionArea['level'], parentId?: number, region?: RegionArea) => void; onDelete: (region: RegionArea) => void }) {
-  const children = regions.filter((region) => region.parentId === parent.id);
-  if (!children.length) return <p className="emptyState">暂无下级地区。</p>;
-  return (
-    <div className="regionAdminList">
-      {children.map((region) => (
-        <div className="regionAdminItem" key={region.id}>
-          <strong>{region.name}</strong>
-          <span>{region.level === 'city' ? '城市' : '区县'}</span>
-          {region.level === 'city' && <button type="button" onClick={() => onSave('district', region.id)}>新增区县</button>}
-          <button type="button" onClick={() => onSave(region.level, region.parentId, region)}>编辑</button>
-          <button type="button" onClick={() => onDelete(region)}>删除</button>
-          {region.level === 'city' && <div className="regionDistricts">
-            {regions.filter((item) => item.parentId === region.id).map((district) => <button type="button" key={district.id} onClick={() => onSave('district', region.id, district)}>{district.name}</button>)}
-          </div>}
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -2204,10 +1953,6 @@ function AuditBadge({ value }: { value?: string }) {
   const status = value || '审核通过';
   if (status === '审核通过') return null;
   return <span className={status === '已下架' ? 'auditBadge removed' : 'auditBadge'}>{status}</span>;
-}
-
-function isSuperAdmin(user: UserProfile | null) {
-  return user?.role === 'SUPER_ADMIN';
 }
 
 function maskPhone(value?: string) {

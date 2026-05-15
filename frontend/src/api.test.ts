@@ -1,4 +1,6 @@
 import { readApiData, readError } from './api';
+import fs from 'fs';
+import path from 'path';
 
 describe('api helpers', () => {
   it('unwraps unified api response envelopes', async () => {
@@ -31,6 +33,22 @@ describe('api helpers', () => {
     }, 400, 'Bad Request');
 
     await expect(readError(response)).resolves.toBe('用户名已被注册');
+  });
+
+  it('keeps legacy admin APIs out of the user-facing entry', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf8');
+
+    expect(mainSource).not.toContain('AdminPage');
+    expect(mainSource).not.toContain('admin=');
+    expect(mainSource).not.toContain('/users/${user.id}/role');
+    expect(mainSource).not.toContain("role === 'SUPER_ADMIN'");
+  });
+
+  it('keeps admin display name editing wired in the standalone admin entry', () => {
+    const adminSource = fs.readFileSync(path.join(__dirname, 'admin.tsx'), 'utf8');
+
+    expect(adminSource).toContain('/display-name');
+    expect(adminSource).toContain('updateAdminDisplayName');
   });
 });
 

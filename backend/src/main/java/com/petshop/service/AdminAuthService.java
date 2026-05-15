@@ -105,6 +105,14 @@ public class AdminAuthService {
         return toResponse(admins.save(adminUser));
     }
 
+    public AdminUserResponse updateDisplayName(Long id, String displayName) {
+        AdminUser adminUser = findAdmin(id);
+        String nextDisplayName = safe(displayName);
+        adminUser.setDisplayName(nextDisplayName.isEmpty() ? safe(adminUser.getUsername()) : nextDisplayName);
+        normalizeAdmin(adminUser);
+        return toResponse(admins.save(adminUser));
+    }
+
     public AdminUserResponse updatePermissions(Long id, List<String> permissions, AdminUser operator) {
         AdminUser adminUser = findAdmin(id);
         if (AdminRole.SUPER_ADMIN.name().equalsIgnoreCase(safe(adminUser.getRole()))) {

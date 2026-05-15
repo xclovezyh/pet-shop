@@ -320,6 +320,22 @@ function AdminApp() {
     await loadTab('accounts', 1);
   }
 
+  async function updateAdminDisplayName(item: AdminProfile) {
+    const displayName = window.prompt('管理员显示名称', item.displayName || item.username);
+    if (displayName === null) return;
+    setError('');
+    const res = await adminFetch(`/accounts/${item.id}/display-name`, {
+      method: 'PUT',
+      body: JSON.stringify({ displayName })
+    });
+    if (!res.ok) {
+      setError(await readError(res));
+      return;
+    }
+    setNotice('管理员显示名已更新。');
+    await loadTab('accounts', pages.accounts);
+  }
+
   async function updateAdminPermissions(id: number) {
     setError('');
     const res = await adminFetch(`/accounts/${id}/permissions`, {
@@ -556,6 +572,9 @@ function AdminApp() {
                         : (item.permissions.length
                           ? item.permissions.map((code) => <span key={code} className="permissionChip">{permissionLabel(permissionOptions, code)}</span>)
                           : <span className="permissionChip permissionChipMuted">未分配任何权限</span>)}
+                    </div>
+                    <div className="adminCardActions">
+                      <button type="button" className="ghostSmallButton" onClick={() => updateAdminDisplayName(item)}>修改显示名</button>
                     </div>
                     {item.role !== 'SUPER_ADMIN' && (
                       <>

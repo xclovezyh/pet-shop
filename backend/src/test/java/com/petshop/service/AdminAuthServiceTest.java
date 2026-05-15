@@ -16,6 +16,7 @@ import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.when;
 class AdminAuthServiceTest {
     @Mock
     private AdminUserRepository admins;
+    @Mock
+    private AdminSessionService adminSessionService;
 
     @InjectMocks
     private AdminAuthService adminAuthService;
@@ -50,5 +53,43 @@ class AdminAuthServiceTest {
         assertThat(response.getItems().get(0).getId()).isEqualTo(2L);
         assertThat(response.getTotal()).isEqualTo(2L);
         assertThat(response.getTotalPages()).isEqualTo(2);
+    }
+
+    @Test
+    void updateDisplayNameShouldTrimAndPersistName() {
+        AdminUser admin = new AdminUser();
+        admin.setId(3L);
+        admin.setUsername("reviewer");
+        admin.setDisplayName("reviewer");
+        admin.setRole("ADMIN");
+        admin.setPermissions("");
+        admin.setEnabled(true);
+
+        when(admins.findById(3L)).thenReturn(Optional.of(admin));
+        when(admins.save(admin)).thenReturn(admin);
+
+        AdminUserResponse response = adminAuthService.updateDisplayName(3L, "  审核员  ");
+
+        assertThat(admin.getDisplayName()).isEqualTo("审核员");
+        assertThat(response.getDisplayName()).isEqualTo("审核员");
+    }
+
+    @Test
+    void updateDisplayNameShouldFallbackToUsernameWhenBlank() {
+        AdminUser admin = new AdminUser();
+        admin.setId(4L);
+        admin.setUsername("operator");
+        admin.setDisplayName("旧名称");
+        admin.setRole("ADMIN");
+        admin.setPermissions("");
+        admin.setEnabled(true);
+
+        when(admins.findById(4L)).thenReturn(Optional.of(admin));
+        when(admins.save(admin)).thenReturn(admin);
+
+        AdminUserResponse response = adminAuthService.updateDisplayName(4L, "  ");
+
+        assertThat(admin.getDisplayName()).isEqualTo("operator");
+        assertThat(response.getDisplayName()).isEqualTo("operator");
     }
 }
