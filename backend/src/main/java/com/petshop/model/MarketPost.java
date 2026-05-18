@@ -26,8 +26,10 @@ public class MarketPost {
     private String type;
     /** 宠物或用品分类。 */
     private String category;
-    /** 交易城市。 */
+    /** 交易城市名称。 */
     private String city;
+    /** 交易城市行政区划代码。 */
+    private String cityCode;
     /** 主图地址。 */
     private String imageUrl;
     /** 图片地址列表，逗号分隔。 */

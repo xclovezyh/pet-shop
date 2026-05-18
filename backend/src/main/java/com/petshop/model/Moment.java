@@ -27,8 +27,10 @@ public class Moment {
     private String petName;
     /** 动态分类。 */
     private String category;
-    /** 发布城市。 */
+    /** 发布城市名称。 */
     private String city;
+    /** 发布城市行政区划代码。 */
+    private String cityCode;
     /** 主图地址。 */
     private String imageUrl;
     /** 审核状态。 */

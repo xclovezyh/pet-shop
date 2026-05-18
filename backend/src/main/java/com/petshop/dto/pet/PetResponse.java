@@ -9,6 +9,7 @@ public class PetResponse {
     private String breed;
     private String age;
     private String city;
+    private String cityCode;
     private String status;
     private BigDecimal price;
     private String imageUrl;
@@ -70,6 +71,14 @@ public class PetResponse {
 
     public void setCity(String city) {
         this.city = city;
+    }
+
+    public String getCityCode() {
+        return cityCode;
+    }
+
+    public void setCityCode(String cityCode) {
+        this.cityCode = cityCode;
     }
 
     public String getStatus() {

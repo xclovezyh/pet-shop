@@ -38,6 +38,7 @@ public class PetService {
         response.setBreed(pet.getBreed());
         response.setAge(pet.getAge());
         response.setCity(pet.getCity());
+        response.setCityCode(pet.getCityCode());
         response.setStatus(pet.getStatus());
         response.setPrice(pet.getPrice());
         response.setImageUrl(pet.getImageUrl());

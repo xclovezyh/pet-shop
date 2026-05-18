@@ -188,6 +188,7 @@ public class UserService {
         user.setAvatarUrl(safe(request.getAvatarUrl()));
         user.setBio(safe(request.getBio()));
         user.setCity(safe(request.getCity()));
+        user.setCityCode(safe(request.getCityCode()));
         return toResponse(users.save(user));
     }
 
@@ -332,6 +333,7 @@ public class UserService {
         response.setRole(user.getRole());
         response.setAvatarUrl(user.getAvatarUrl());
         response.setCity(user.getCity());
+        response.setCityCode(user.getCityCode());
         response.setBlacklisted(user.getBlacklisted());
         response.setBlacklistReason(user.getBlacklistReason());
         response.setCreatedAt(user.getCreatedAt());

@@ -39,8 +39,10 @@ public class AppUser {
     private String role;
     /** 头像图片地址。 */
     private String avatarUrl;
-    /** 常驻城市。 */
+    /** 常驻城市名称。 */
     private String city;
+    /** 常驻城市行政区划代码。 */
+    private String cityCode;
     /** 是否被平台限制。 */
     private Boolean blacklisted;
     /** 账号限制原因。 */

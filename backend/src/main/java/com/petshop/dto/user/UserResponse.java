@@ -10,6 +10,7 @@ public class UserResponse {
     private String role;
     private String avatarUrl;
     private String city;
+    private String cityCode;
     private Boolean blacklisted;
     private String blacklistReason;
     private LocalDateTime createdAt;
@@ -70,6 +71,14 @@ public class UserResponse {
 
     public void setCity(String city) {
         this.city = city;
+    }
+
+    public String getCityCode() {
+        return cityCode;
+    }
+
+    public void setCityCode(String cityCode) {
+        this.cityCode = cityCode;
     }
 
     public Boolean getBlacklisted() {

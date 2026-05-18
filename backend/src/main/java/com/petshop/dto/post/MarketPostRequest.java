@@ -7,6 +7,7 @@ public class MarketPostRequest {
     private String type;
     private String category;
     private String city;
+    private String cityCode;
     private String imageUrl;
     private String imageUrls;
     private String author;
@@ -44,6 +45,14 @@ public class MarketPostRequest {
 
     public void setCity(String city) {
         this.city = city;
+    }
+
+    public String getCityCode() {
+        return cityCode;
+    }
+
+    public void setCityCode(String cityCode) {
+        this.cityCode = cityCode;
     }
 
     public String getImageUrl() {

@@ -4,6 +4,7 @@ import java.util.List;
 
 public class RegionCityResponse {
     private String name;
+    private String areaCode;
     private List<String> districts;
 
     public String getName() {
@@ -12,6 +13,14 @@ public class RegionCityResponse {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getAreaCode() {
+        return areaCode;
+    }
+
+    public void setAreaCode(String areaCode) {
+        this.areaCode = areaCode;
     }
 
     public List<String> getDistricts() {

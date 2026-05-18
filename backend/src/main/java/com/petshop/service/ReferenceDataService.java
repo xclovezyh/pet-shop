@@ -94,6 +94,7 @@ public class ReferenceDataService {
     private RegionTreeResponse toProvinceResponse(RegionArea province, Map<Long, List<RegionArea>> byParent) {
         RegionTreeResponse response = new RegionTreeResponse();
         response.setName(province.getName());
+        response.setAreaCode(province.getAreaCode());
         response.setCities(byParent.getOrDefault(province.getId(), new ArrayList<>()).stream()
                 .map(city -> toCityResponse(city, byParent))
                 .collect(Collectors.toList()));
@@ -103,6 +104,7 @@ public class ReferenceDataService {
     private RegionCityResponse toCityResponse(RegionArea city, Map<Long, List<RegionArea>> byParent) {
         RegionCityResponse response = new RegionCityResponse();
         response.setName(city.getName());
+        response.setAreaCode(city.getAreaCode());
         response.setDistricts(byParent.getOrDefault(city.getId(), new ArrayList<>()).stream()
                 .map(RegionArea::getName)
                 .collect(Collectors.toList()));

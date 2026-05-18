@@ -108,6 +108,7 @@ public class MarketPostService {
         existing.setType(request.getType());
         existing.setCategory(request.getCategory());
         existing.setCity(request.getCity());
+        existing.setCityCode(request.getCityCode());
         existing.setImageUrl(request.getImageUrl());
         existing.setImageUrls(request.getImageUrls());
         existing.setDescription(request.getDescription());
@@ -154,6 +155,7 @@ public class MarketPostService {
         post.setType(request.getType());
         post.setCategory(request.getCategory());
         post.setCity(request.getCity());
+        post.setCityCode(request.getCityCode());
         post.setImageUrl(request.getImageUrl());
         post.setImageUrls(request.getImageUrls());
         post.setAuthor(request.getAuthor());
@@ -193,6 +195,7 @@ public class MarketPostService {
         response.setType(post.getType());
         response.setCategory(post.getCategory());
         response.setCity(post.getCity());
+        response.setCityCode(post.getCityCode());
         response.setImageUrl(post.getImageUrl());
         response.setImageUrls(post.getImageUrls());
         response.setContact(post.getContact());

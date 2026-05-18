@@ -27,8 +27,10 @@ public class Pet {
     private String breed;
     /** 年龄描述。 */
     private String age;
-    /** 所在城市。 */
+    /** 所在城市名称。 */
     private String city;
+    /** 所在城市行政区划代码。 */
+    private String cityCode;
     /** 资料状态。 */
     private String status;
     /** 参考价格。 */

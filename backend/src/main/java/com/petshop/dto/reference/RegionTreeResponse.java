@@ -4,6 +4,7 @@ import java.util.List;
 
 public class RegionTreeResponse {
     private String name;
+    private String areaCode;
     private List<RegionCityResponse> cities;
 
     public String getName() {
@@ -12,6 +13,14 @@ public class RegionTreeResponse {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getAreaCode() {
+        return areaCode;
+    }
+
+    public void setAreaCode(String areaCode) {
+        this.areaCode = areaCode;
     }
 
     public List<RegionCityResponse> getCities() {

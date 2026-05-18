@@ -133,6 +133,7 @@ public class MomentService {
         existing.setPetName(request.getPetName());
         existing.setCategory(request.getCategory());
         existing.setCity(request.getCity());
+        existing.setCityCode(request.getCityCode());
         existing.setImageUrl(request.getImageUrl());
         existing.setImageUrls(request.getImageUrls());
         existing.setContent(request.getContent());
@@ -173,6 +174,7 @@ public class MomentService {
         moment.setPetName(request.getPetName());
         moment.setCategory(request.getCategory());
         moment.setCity(request.getCity());
+        moment.setCityCode(request.getCityCode());
         moment.setImageUrl(request.getImageUrl());
         moment.setImageUrls(request.getImageUrls());
         moment.setContent(request.getContent());
@@ -185,6 +187,7 @@ public class MomentService {
         response.setPetName(moment.getPetName());
         response.setCategory(moment.getCategory());
         response.setCity(moment.getCity());
+        response.setCityCode(moment.getCityCode());
         response.setImageUrl(moment.getImageUrl());
         response.setAuditStatus(moment.getAuditStatus());
         response.setImageUrls(moment.getImageUrls());
