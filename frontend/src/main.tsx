@@ -77,6 +77,7 @@ type Pet = {
   breed: string;
   age: string;
   city: string;
+  cityCode?: string;
   status: string;
   price: number;
   imageUrl: string;
@@ -99,6 +100,7 @@ type MarketPost = {
   type: string;
   category: string;
   city: string;
+  cityCode?: string;
   description: string;
   author: string;
   contact: string;
@@ -115,6 +117,7 @@ type Moment = {
   petName: string;
   category?: string;
   city?: string;
+  cityCode?: string;
   content: string;
   likes: number;
   auditStatus?: string;
@@ -125,7 +128,7 @@ type Moment = {
 type MomentComment = { id: number; momentId: number; author: string; content: string; createdAt: string };
 type PostFavorite = { id: number; userId: number; userNickname?: string; postId: number; createdAt: string; post?: MarketPost };
 type TradeIntent = { id: number; postId: number; postTitle: string; requester: string; owner: string; message: string; status: string; createdAt: string; updatedAt: string; post?: MarketPost };
-type Region = { name: string; cities: Array<{ name: string; districts: string[] }> };
+type Region = { name: string; areaCode?: string; cities: Array<{ name: string; areaCode?: string; districts: string[] }> };
 type PageKey = 'home' | 'guide' | 'market' | 'moments' | 'mine' | 'profile' | 'messages' | 'favorites' | 'account';
 type VerifyCodeResponse = { phone: string; code?: string; expireSeconds: number; message: string };
 type MessageItem = { id: number; threadId: number; sender: string; content: string; readByRecipient: boolean; createdAt: string };
@@ -143,9 +146,9 @@ type ReferenceData = {
 };
 
 const fallbackRegions: Region[] = [
-  { name: '上海市', cities: [{ name: '上海市', districts: ['浦东新区', '徐汇区', '静安区', '闵行区'] }] },
-  { name: '浙江省', cities: [{ name: '杭州市', districts: ['西湖区', '拱墅区', '滨江区', '余杭区'] }] },
-  { name: '江苏省', cities: [{ name: '南京市', districts: ['玄武区', '秦淮区', '建邺区'] }] }
+  { name: '上海市', cities: [{ name: '上海市', areaCode: '310000', districts: ['浦东新区', '徐汇区', '静安区', '闵行区'] }] },
+  { name: '浙江省', cities: [{ name: '杭州市', areaCode: '330100', districts: ['西湖区', '拱墅区', '滨江区', '余杭区'] }] },
+  { name: '江苏省', cities: [{ name: '南京市', areaCode: '320100', districts: ['玄武区', '秦淮区', '建邺区'] }] }
 ];
 
 const fallbackReferenceData: ReferenceData = {
@@ -1326,6 +1329,7 @@ function Composer({ categories, referenceData, currentUser, onSuccess }: { categ
     setBusy(true);
     body.author = currentUser.nickname;
     body.city = `${province} ${city} ${district}`;
+    body.cityCode = selectedCity.areaCode || '';
     body.contact = CONTACT_VALUE;
     if (mode === 'post') {
       body.type = postType;
@@ -1424,6 +1428,7 @@ function EditModal(props: {
     setError('');
     body.author = props.currentUser.nickname;
     body.city = `${province} ${city} ${district}`;
+    body.cityCode = selectedCity.areaCode || '';
     if (props.detail.type === 'post') {
       body.contact = CONTACT_VALUE;
       body.price = body.price || '0';
@@ -1491,17 +1496,35 @@ function ProfilePanel(props: {
 }) {
   const [avatarUrl, setAvatarUrl] = React.useState(props.currentUser?.avatarUrl || '');
   const [bio, setBio] = React.useState(props.currentUser?.bio || '');
-  const [city, setCity] = React.useState(props.currentUser?.city || '');
   const [status, setStatus] = React.useState('');
   const regions = props.referenceData.regions.length ? props.referenceData.regions : fallbackRegions;
-  const cities = cityOptions(regions);
+  const [province, setProvince] = React.useState(regions[0].name);
+  const selectedProvince = regions.find((item) => item.name === province) || regions[0];
+  const [city, setCity] = React.useState(selectedProvince.cities[0].name);
+  const selectedCity = selectedProvince.cities.find((item) => item.name === city) || selectedProvince.cities[0];
+  const [district, setDistrict] = React.useState(selectedCity.districts[0]);
   const myPosts = props.currentUser ? props.posts.filter((post) => post.author === props.currentUser!.nickname) : [];
 
   React.useEffect(() => {
     setAvatarUrl(props.currentUser?.avatarUrl || '');
     setBio(props.currentUser?.bio || '');
-    setCity(props.currentUser?.city || '');
   }, [props.currentUser]);
+
+  React.useEffect(() => {
+    const nextCity = selectedProvince.cities[0].name;
+    setCity(nextCity);
+    setDistrict(selectedProvince.cities[0].districts[0]);
+  }, [province]);
+
+  React.useEffect(() => setDistrict(selectedCity.districts[0]), [city]);
+
+  React.useEffect(() => {
+    if (!regions.some((item) => item.name === province)) {
+      setProvince(regions[0].name);
+      setCity(regions[0].cities[0].name);
+      setDistrict(regions[0].cities[0].districts[0]);
+    }
+  }, [regions, province]);
 
   if (!props.currentUser) {
     return <EmptyState title="登录后查看个人主页" helper="个人资料、收藏入口和私信入口会集中显示在这里。" />;
@@ -1511,14 +1534,15 @@ function ProfilePanel(props: {
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus('');
-    if (hasUnsafeContent(`${avatarUrl} ${bio} ${city}`)) {
+    const cityDisplayName = `${province} ${city} ${district}`;
+    if (hasUnsafeContent(`${avatarUrl} ${bio} ${cityDisplayName}`)) {
       return setStatus('个人资料不能填写手机号、微信号、QQ 号或敏感词，请使用站内沟通。');
     }
     try {
       const res = await fetch(`${API_BASE}/users/${props.currentUser!.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ avatarUrl, bio, city })
+        body: JSON.stringify({ avatarUrl, bio, city: cityDisplayName, cityCode: selectedCity.areaCode || '' })
       });
       if (!res.ok) throw new Error(await readError(res));
       props.onSaved(await readApiData<UserProfile>(res));
@@ -1535,16 +1559,13 @@ function ProfilePanel(props: {
         <div>
           <h3>{props.currentUser.nickname}</h3>
           <p>{bio || '还没有填写个人简介。'}</p>
-          <p className="sub"><MapPin size={15} />{city || '未设置常驻城市'}</p>
+          <p className="sub"><MapPin size={15} />{`${province} ${city} ${district}`}</p>
         </div>
       </div>
       <form className="profileForm" onSubmit={saveProfile}>
         {accountLocked && <p className="formError">{props.currentUser.blacklistReason || '账号已被限制，暂不能修改个人资料。'}</p>}
         <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="头像图片地址" disabled={accountLocked} />
-        <select value={city} onChange={(event) => setCity(event.target.value)} disabled={accountLocked}>
-          <option value="">选择常驻城市</option>
-          {cities.map((item) => <option key={item}>{item}</option>)}
-        </select>
+        <RegionPicker province={province} city={city} district={district} selectedProvince={selectedProvince} selectedCity={selectedCity} regions={regions} disabled={accountLocked} onProvince={setProvince} onCity={setCity} onDistrict={setDistrict} />
         <textarea value={bio} onChange={(event) => setBio(event.target.value)} placeholder="简介，例如养宠经验、偏好的宠物类型或交易习惯" disabled={accountLocked} />
         {status && <p className="formNote">{status}</p>}
         <button className="submit" type="submit" disabled={accountLocked}>保存个人资料</button>
