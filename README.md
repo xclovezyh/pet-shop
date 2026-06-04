@@ -49,7 +49,7 @@ CREATE DATABASE pet_shop DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 
 默认数据库连接：
 
-- `MYSQL_URL=jdbc:mysql://localhost:3306/pet_shop?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai`
+- `MYSQL_URL=jdbc:mysql://localhost:3308/pet_shop?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai`
 - `MYSQL_USERNAME=root`
 - `MYSQL_PASSWORD=123`
 

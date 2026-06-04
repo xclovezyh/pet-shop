@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import { apiFetch, clearAuthSession, getStoredUser, readApiData, readError, saveAuthSession, saveStoredUser, type AuthSession } from './api';
+import { matchesCity, type CityFilterOption } from './region';
 import { hashPasswordForTransport } from './security';
 
 const API_BASE = '/api';
@@ -231,18 +232,18 @@ function App() {
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
   const filteredPets = sortByTime(pets.data
     .filter((pet) => matchesCategory(categoryFilter, pet.category))
-    .filter((pet) => matchesCity(cityFilter, pet.cityCode))
+    .filter((pet) => matchesCity(cityFilter, pet.cityCode, pet.city, availableCities))
     .filter((pet) => matchesPrice(minPrice, maxPrice, pet.price))
     .filter((pet) => matchesText(searchQuery, [pet.name, pet.category, pet.breed, pet.city, pet.status, pet.healthInfo, pet.personality])), sortMode);
   const filteredPosts = sortPostsForDisplay(posts.data
     .filter((post) => matchesCategory(categoryFilter, post.category))
-    .filter((post) => matchesCity(cityFilter, post.cityCode))
+    .filter((post) => matchesCity(cityFilter, post.cityCode, post.city, availableCities))
     .filter((post) => matchesType(typeFilter, post.type))
     .filter((post) => matchesPrice(minPrice, maxPrice, post.price))
     .filter((post) => matchesText(searchQuery, [post.title, post.type, post.category, post.city, post.description, post.author])), sortMode);
   const filteredMoments = sortByTime(moments.data
     .filter((moment) => matchesCategory(categoryFilter, moment.category))
-    .filter((moment) => matchesCity(cityFilter, moment.cityCode))
+    .filter((moment) => matchesCity(cityFilter, moment.cityCode, moment.city, availableCities))
     .filter((moment) => matchesText(searchQuery, [moment.author, moment.petName, moment.category, moment.city, moment.content])), sortMode);
 
   function handleLogin(session: UserAuthSession) {
@@ -1855,10 +1856,6 @@ function matchesCategory(filter: string, category?: string) {
   return filter === '全部' || category === filter;
 }
 
-function matchesCity(filter: string, cityCode?: string) {
-  return !filter || cityCode === filter;
-}
-
 function matchesType(filter: string, type?: string) {
   return filter === '全部' || type === filter;
 }
@@ -1938,8 +1935,8 @@ function resolveCityName(cityCode: string | undefined, regions: Region[]): strin
   return '';
 }
 
-function cityOptions(regions: Region[]): Array<{ code: string; name: string }> {
-  const result: Array<{ code: string; name: string }> = [{ code: '', name: '全部' }];
+function cityOptions(regions: Region[]): CityFilterOption[] {
+  const result: CityFilterOption[] = [{ code: '', name: '全部' }];
   for (const province of regions) {
     for (const city of province.cities) {
       result.push({ code: city.areaCode || '', name: `${province.name} ${city.name}` });

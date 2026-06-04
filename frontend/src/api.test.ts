@@ -50,6 +50,13 @@ describe('api helpers', () => {
     expect(adminSource).toContain('/display-name');
     expect(adminSource).toContain('updateAdminDisplayName');
   });
+
+  it('documents the default local MySQL port used by application.yml', () => {
+    const readme = fs.readFileSync(path.join(__dirname, '..', '..', 'README.md'), 'utf8');
+
+    expect(readme).toContain('localhost:3308/pet_shop');
+    expect(readme).not.toContain('localhost:3306/pet_shop');
+  });
 });
 
 function mockResponse(body: unknown, status: number, statusText = '') {
