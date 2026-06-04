@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   Camera,
@@ -213,7 +213,7 @@ function App() {
   const referenceData = useApi<ReferenceData>('/reference-data', fallbackReferenceData);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState('全部');
-  const [cityFilter, setCityFilter] = React.useState('全部');
+  const [cityFilter, setCityFilter] = React.useState('');
   const [typeFilter, setTypeFilter] = React.useState('全部');
   const [minPrice, setMinPrice] = React.useState('');
   const [maxPrice, setMaxPrice] = React.useState('');
@@ -231,18 +231,18 @@ function App() {
   const filteredCategories = categories.data.filter((category) => matchesText(searchQuery, [category.name, category.description, category.tags]));
   const filteredPets = sortByTime(pets.data
     .filter((pet) => matchesCategory(categoryFilter, pet.category))
-    .filter((pet) => matchesCity(cityFilter, pet.city))
+    .filter((pet) => matchesCity(cityFilter, pet.cityCode))
     .filter((pet) => matchesPrice(minPrice, maxPrice, pet.price))
     .filter((pet) => matchesText(searchQuery, [pet.name, pet.category, pet.breed, pet.city, pet.status, pet.healthInfo, pet.personality])), sortMode);
   const filteredPosts = sortPostsForDisplay(posts.data
     .filter((post) => matchesCategory(categoryFilter, post.category))
-    .filter((post) => matchesCity(cityFilter, post.city))
+    .filter((post) => matchesCity(cityFilter, post.cityCode))
     .filter((post) => matchesType(typeFilter, post.type))
     .filter((post) => matchesPrice(minPrice, maxPrice, post.price))
     .filter((post) => matchesText(searchQuery, [post.title, post.type, post.category, post.city, post.description, post.author])), sortMode);
   const filteredMoments = sortByTime(moments.data
     .filter((moment) => matchesCategory(categoryFilter, moment.category))
-    .filter((moment) => matchesCity(cityFilter, moment.city))
+    .filter((moment) => matchesCity(cityFilter, moment.cityCode))
     .filter((moment) => matchesText(searchQuery, [moment.author, moment.petName, moment.category, moment.city, moment.content])), sortMode);
 
   function handleLogin(session: UserAuthSession) {
@@ -904,7 +904,7 @@ function MarketPage(props: {
   sortMode: 'latest' | 'oldest';
   loading: boolean;
   availableCategories: string[];
-  availableCities: string[];
+  availableCities: Array<{ code: string; name: string }>;
   postTypes: string[];
   posts: MarketPost[];
   categories: Category[];
@@ -1011,7 +1011,7 @@ function FilterBar(props: {
   maxPrice: string;
   sortMode: 'latest' | 'oldest';
   availableCategories: string[];
-  availableCities: string[];
+  availableCities: Array<{ code: string; name: string }>;
   postTypes: string[];
   onSearch: (value: string) => void;
   onCategory: (value: string) => void;
@@ -1030,8 +1030,8 @@ function FilterBar(props: {
           {props.availableCategories.map((category) => <option key={category}>{category}</option>)}
         </select>
         <select value={props.cityFilter} onChange={(event) => props.onCity(event.target.value)}>
-          <option value="全部">全部城市</option>
-          {props.availableCities.map((city) => <option key={city}>{city}</option>)}
+                    <option value="">全部城市</option>
+          {props.availableCities.filter((opt) => opt.code).map((opt) => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
         </select>
         <select value={props.typeFilter} onChange={(event) => props.onType(event.target.value)}>
           <option value="全部">全部类型</option>
@@ -1401,7 +1401,7 @@ function EditModal(props: {
 }) {
   const item = props.detail.item;
   const regions = props.referenceData.regions.length ? props.referenceData.regions : fallbackRegions;
-  const initialRegion = parseRegion(props.detail.type === 'post' ? (item as MarketPost).city : (item as Moment).city, regions);
+  const initialRegion = parseRegion(props.detail.type === 'post' ? (item as MarketPost).city : (item as Moment).city, (props.detail.type === 'post' ? (item as MarketPost).cityCode : (item as Moment).cityCode), regions);
   const [province, setProvince] = React.useState(initialRegion.province);
   const selectedProvince = regions.find((region) => region.name === province) || regions[0];
   const [city, setCity] = React.useState(initialRegion.city);
@@ -1855,8 +1855,8 @@ function matchesCategory(filter: string, category?: string) {
   return filter === '全部' || category === filter;
 }
 
-function matchesCity(filter: string, city?: string) {
-  return filter === '全部' || (city || '').includes(filter);
+function matchesCity(filter: string, cityCode?: string) {
+  return !filter || cityCode === filter;
 }
 
 function matchesType(filter: string, type?: string) {
@@ -1926,9 +1926,28 @@ function postStatusPriority(status?: string) {
   return 4;
 }
 
-function cityOptions(regions: Region[]) {
-  return Array.from(new Set(regions.flatMap((province) => province.cities.map((city) => city.name))));
+function resolveCityName(cityCode: string | undefined, regions: Region[]): string {
+  if (!cityCode) return '';
+  for (const province of regions) {
+    for (const city of province.cities) {
+      if (city.areaCode === cityCode) {
+        return `${province.name} ${city.name}`;
+      }
+    }
+  }
+  return '';
 }
+
+function cityOptions(regions: Region[]): Array<{ code: string; name: string }> {
+  const result: Array<{ code: string; name: string }> = [{ code: '', name: '全部' }];
+  for (const province of regions) {
+    for (const city of province.cities) {
+      result.push({ code: city.areaCode || '', name: `${province.name} ${city.name}` });
+    }
+  }
+  return result;
+}
+
 
 function formatTime(value: string) {
   const date = new Date(value);
@@ -2017,7 +2036,15 @@ function validateImage(file: File) {
   return '';
 }
 
-function parseRegion(value: string | undefined, regions: Region[]) {
+function parseRegion(value: string | undefined, cityCode: string | undefined, regions: Region[]) {
+  if (cityCode) {
+    for (const province of regions) {
+      const found = province.cities.find((c) => c.areaCode === cityCode);
+      if (found) {
+        return { province: province.name, city: found.name, district: found.districts[0] };
+      }
+    }
+  }
   const [provinceName, cityName, districtName] = (value || '').split(/\s+/);
   const province = regions.find((item) => item.name === provinceName) || regions[0];
   const city = province.cities.find((item) => item.name === cityName) || province.cities[0];
